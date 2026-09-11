@@ -13,5 +13,6 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --locked
+      - run: bash -n scripts/*.sh
       - run: uv run python -m compileall -q rag service bench harness scripts tests
       - run: uv run python -m unittest discover -s tests -v

@@ -34,6 +34,11 @@ Preview what it would do without installing, downloading, or starting anything:
 ./scripts/bootstrap_new_machine.sh --dry-run
 ```
 
+> **Important:** seeing `qwen3:8b` in `ollama list` does not mean the 8B GGUF
+> exists. Ollama stores models in its own managed format; `llama-server` needs
+> the separate `models/qwen3-8b-official.gguf`. The bootstrap downloads and
+> verifies both formats before starting anything that depends on them.
+
 ## 1. Install system prerequisites
 
 ```bash
@@ -131,19 +136,33 @@ models/qwen3-8b-official.gguf
 ```
 
 The `models/` directory is ignored by Git. Start each model server in its own
-terminal:
+terminal only after confirming both files exist. The recommended command is
+the one-shot bootstrap above because it downloads, verifies, and starts them
+in the correct order. If starting manually, fail early with a useful message:
 
 ```bash
+test -s models/qwen3-4b-official.gguf || {
+  echo "Missing 4B GGUF; run ./scripts/bootstrap_new_machine.sh"
+  exit 1
+}
 llama-server \
   -m models/qwen3-4b-official.gguf \
-  --port 8082 -ngl 99 -c 4096
+  --host 127.0.0.1 --port 8082 -ngl 99 -c 4096
 ```
 
 ```bash
+test -s models/qwen3-8b-official.gguf || {
+  echo "Missing 8B GGUF; run ./scripts/bootstrap_new_machine.sh"
+  exit 1
+}
 llama-server \
   -m models/qwen3-8b-official.gguf \
-  --port 8081 -ngl 99 -c 4096
+  --host 127.0.0.1 --port 8081 -ngl 99 -c 4096
 ```
+
+The GGUF downloads are roughly 2.5 GB (4B) and 5.0 GB (8B). Interrupted
+downloads remain as `.part` files and resume on the next bootstrap run. The
+script checks the exact expected byte size before a model can be started.
 
 Then start the API in a third terminal:
 

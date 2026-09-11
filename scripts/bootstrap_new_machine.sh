@@ -141,10 +141,10 @@ run uv sync --locked --project "${ROOT_DIR}"
 
 status "Installing official llama.cpp GGUF models (downloads resume if interrupted)"
 download_gguf "Qwen3 4B Q4_K_M" \
-  "https://huggingface.co/Qwen/Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q4_K_M.gguf" \
+  "https://huggingface.co/Qwen/Qwen3-4B-GGUF/resolve/bc640142c66e1fdd12af0bd68f40445458f3869b/Qwen3-4B-Q4_K_M.gguf" \
   "${MODEL_DIR}/qwen3-4b-official.gguf" 2497280256
 download_gguf "Qwen3 8B Q4_K_M" \
-  "https://huggingface.co/Qwen/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q4_K_M.gguf" \
+  "https://huggingface.co/Qwen/Qwen3-8B-GGUF/resolve/7c41481f57cb95916b40956ab2f0b139b296d974/Qwen3-8B-Q4_K_M.gguf" \
   "${MODEL_DIR}/qwen3-8b-official.gguf" 5027783488
 
 status "Ensuring the fast llama.cpp lane is running"
@@ -153,7 +153,8 @@ if http_ready "http://127.0.0.1:8082/health"; then
 else
   start_background "llama.cpp fast lane" "${RUNTIME_DIR}/llama-fast.pid" \
     "${LOG_DIR}/llama-fast.log" llama-server \
-    -m "${MODEL_DIR}/qwen3-4b-official.gguf" --port 8082 -ngl 99 -c 4096
+    -m "${MODEL_DIR}/qwen3-4b-official.gguf" --host 127.0.0.1 \
+    --port 8082 -ngl 99 -c 4096
   wait_for_http "llama.cpp fast lane" "http://127.0.0.1:8082/health" 60
 fi
 
@@ -163,7 +164,8 @@ if http_ready "http://127.0.0.1:8081/health"; then
 else
   start_background "llama.cpp deep lane" "${RUNTIME_DIR}/llama-deep.pid" \
     "${LOG_DIR}/llama-deep.log" llama-server \
-    -m "${MODEL_DIR}/qwen3-8b-official.gguf" --port 8081 -ngl 99 -c 4096
+    -m "${MODEL_DIR}/qwen3-8b-official.gguf" --host 127.0.0.1 \
+    --port 8081 -ngl 99 -c 4096
   wait_for_http "llama.cpp deep lane" "http://127.0.0.1:8081/health" 60
 fi
 

@@ -35,3 +35,4 @@ if [[ "${1:-}" == "--with-embed" ]]; then
 fi
 
 echo "Ollama setup complete. Pinned benchmark configs send keep_alive=-1s per request."
+echo "Note: Ollama models are not GGUF files for llama-server; the full bootstrap installs those separately."
