@@ -10,6 +10,7 @@ and both llama-server processes it depends on.
 """
 from __future__ import annotations
 import argparse
+import os
 import sys
 import time
 
@@ -70,9 +71,12 @@ def ask(client: httpx.Client, question: str) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--host", default="http://127.0.0.1:8000")
+    ap.add_argument("--api-key", default=os.environ.get("RAG_API_KEY"),
+                    help="bearer token (defaults to RAG_API_KEY)")
     a = ap.parse_args()
 
-    with httpx.Client(base_url=a.host) as client:
+    headers = {"Authorization": f"Bearer {a.api_key}"} if a.api_key else {}
+    with httpx.Client(base_url=a.host, headers=headers) as client:
         try:
             h = client.get("/health", timeout=5).json()
             print(f"{BOLD}local-rag-lab{RESET} - connected to {a.host}, lanes={h.get('lanes')}, "

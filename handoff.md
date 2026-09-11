@@ -1,6 +1,7 @@
 # Handoff
 
 Current state: repository setup and production-readiness audit complete.
+The root README is the canonical installation and model-setup guide.
 
 Verification commands:
 

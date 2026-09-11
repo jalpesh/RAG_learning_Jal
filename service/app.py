@@ -5,7 +5,7 @@ lanes -> confidence-gated auto-escalation, sharing one retrieval layer.
 
 Prerequisites - two llama-server processes, already running:
     llama-server -m models/qwen3-4b-official.gguf --port 8082 -ngl 99 -c 4096   # fast lane
-    llama-server -m models/qwen3-8b.gguf          --port 8081 -ngl 99 -c 4096   # deep lane
+    llama-server -m models/qwen3-8b-official.gguf --port 8081 -ngl 99 -c 4096   # deep lane
 
 Request flow for POST /query:
     1. Semantic cache check (embedding similarity, no LLM call at all on a hit)

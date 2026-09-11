@@ -3,23 +3,155 @@
 Understand why a local RAG takes minutes when a hosted one takes seconds —
 then close the gap on an M3 Pro / 18 GB, fully offline.
 
-Read `docs/00-design.md` first. It is the plan.
+Read `docs/00-design.md` for the benchmark design and
+`docs/03-production-readiness.md` for the production gap assessment.
 
 ## Where to build this
 
-**In Claude Code, on the Mac.** Not in a Cowork sandbox.
-This project needs Metal, Ollama/llama.cpp, multi-GB model files and a
-long-lived local server. The Cowork session's shell is a 3 GB headless Linux VM
-with no GPU and no model runtime — it can read and write these files, but it
-can never run or benchmark them.
+Run the complete benchmark on an Apple Silicon Mac. It depends on Metal,
+Ollama and/or llama.cpp, multi-GB model files, and long-lived local servers.
+The lightweight unit tests can run on macOS or Linux without downloading a
+generation model.
 
-## Setup (run on the Mac)
+## 1. Install system prerequisites
 
 ```bash
+brew install uv ollama llama.cpp
+
 cd /Volumes/JalExt/projects/Learning/local-rag-lab
 uv sync --locked
 source .venv/bin/activate
-brew install llama.cpp        # provides llama-server with Metal
+./scripts/preflight.sh
+```
+
+`uv sync` installs the default local embedder,
+`BAAI/bge-small-en-v1.5`. Sentence Transformers downloads its weights on the
+first run. The download is cached outside this repository.
+
+## 2. Download the Ollama models
+
+The Ollama benchmark matrix in `rag/config.py` uses these generation models:
+
+| Model | Purpose | Approximate class |
+|---|---|---|
+| `qwen3:4b` | Faster generation benchmark | 4B |
+| `qwen3:8b` | Higher-quality control/deep model | 8B |
+
+Download both and verify them:
+
+```bash
+ollama pull qwen3:4b
+ollama pull qwen3:8b
+ollama list
+```
+
+Start Ollama in a dedicated terminal and keep models resident between calls:
+
+```bash
+OLLAMA_KEEP_ALIVE=-1 ollama serve
+```
+
+If the Ollama desktop application is already running, do not start a second
+server. Confirm the existing server is reachable instead:
+
+```bash
+curl --fail --silent http://127.0.0.1:11434/api/tags >/dev/null \
+  && echo "Ollama is ready"
+```
+
+Optional: the code can use Ollama for embeddings too. The default and measured
+configuration uses Sentence Transformers, so this model is **not required**:
+
+```bash
+ollama pull nomic-embed-text
+```
+
+When creating that optional configuration, set both
+`embed_backend="ollama"` and `embed_model="nomic-embed-text"`. Do not reuse
+the default Hugging Face model name with the Ollama backend.
+
+## 3. Add documents
+
+Place `.pdf` or `.docx` files in `corpus/`. Corpus contents are ignored by Git
+because they may contain private data; only `corpus/.gitkeep` is committed.
+
+```bash
+cp /path/to/document.pdf corpus/
+```
+
+## 4. Run Ollama-backed benchmarks
+
+Run one configuration first, inspect its answers, and then run the matrix:
+
+```bash
+uv run python -m bench.run --config naive-cpu --regression
+uv run python -m bench.run --config ollama-4b --regression
+uv run python -m bench.run --all
+uv run python -m bench.report
+```
+
+Available names are defined in `rag/config.py`. Runs using a `llamacpp-*`
+configuration also require the matching llama.cpp server described below.
+
+## 5. Run the resident two-lane service
+
+The FastAPI service uses llama.cpp rather than Ollama: 4B is the fast lane and
+8B is the deep lane. Ollama's downloaded model blobs are not the same as the
+named files expected in `models/`. Download compatible Qwen3 GGUF files and
+save them as:
+
+```text
+models/qwen3-4b-official.gguf
+models/qwen3-8b-official.gguf
+```
+
+The `models/` directory is ignored by Git. Start each model server in its own
+terminal:
+
+```bash
+llama-server \
+  -m models/qwen3-4b-official.gguf \
+  --port 8082 -ngl 99 -c 4096
+```
+
+```bash
+llama-server \
+  -m models/qwen3-8b-official.gguf \
+  --port 8081 -ngl 99 -c 4096
+```
+
+Then start the API in a third terminal:
+
+```bash
+RAG_API_KEY="replace-with-a-long-random-secret" \
+  uv run uvicorn service.app:app --host 127.0.0.1 --port 8000
+```
+
+Check readiness and query it:
+
+```bash
+curl --fail http://127.0.0.1:8000/health
+
+curl --fail http://127.0.0.1:8000/query \
+  -H "Authorization: Bearer replace-with-a-long-random-secret" \
+  -H "Content-Type: application/json" \
+  -d '{"question":"What does the document say?"}'
+
+RAG_API_KEY="replace-with-a-long-random-secret" \
+  uv run python scripts/chat.py
+```
+
+The terminal client reads `RAG_API_KEY` automatically or accepts `--api-key`.
+Prefer the environment variable so the secret is not stored in shell history.
+Never bind an unauthenticated instance to a LAN interface.
+
+## 6. Verify the code without model servers
+
+```bash
+uv run python -m unittest discover -s tests -v
+uv run python -m compileall -q rag service bench harness scripts tests
+uv run python -m rag.confidence
+uv run python -m rag.route
 ```
 
 ## Layout
@@ -37,13 +169,11 @@ scripts/   one-shot utilities
 
 Measure after every change. A change you did not measure did not happen.
 
-## Verification
-
-```bash
-uv run python -m unittest discover -s tests -v
-uv run python -m compileall -q rag service bench harness scripts
-```
-
 The lightweight suite does not start model servers or download GGUF files.
 Run the benchmark harness on Apple Silicon to validate end-to-end retrieval,
 generation quality, and latency.
+
+## Model references
+
+- [Qwen3 in the Ollama library](https://ollama.com/library/qwen3)
+- [Nomic Embed Text in the Ollama library](https://ollama.com/library/nomic-embed-text)
