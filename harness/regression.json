@@ -1,0 +1,70 @@
+{
+  "_note": "Fast regression subset of questions.json - the questions that actually caught a bug or a size-dependent break this session (cross-document contamination, counting, cross-doc comparison) plus every refusal check. Use for quick iteration; run the full questions.json before calling anything done.",
+  "questions": [
+    {
+      "q": "How many years of experience does Jalpesh_Rajani.pdf's profile section claim?",
+      "type": "factual",
+      "expect": "18 years"
+    },
+    {
+      "q": "How many years of experience does the HCL Software resume's summary claim?",
+      "type": "factual",
+      "expect": "19 years"
+    },
+    {
+      "q": "Per Jalpesh_Rajani.pdf, in what year did he graduate, and how many years of experience does the profile section claim as of the resume's writing?",
+      "type": "multihop",
+      "expect": "2005 graduation; profile claims 18 years experience"
+    },
+    {
+      "q": "Whose phone number appears on both the Camp Ethnosphere form and the resumes, and what is it?",
+      "type": "multihop",
+      "expect": "Jalpesh Rajani, 9820377527"
+    },
+    {
+      "q": "Do the two resumes agree on the start and end dates of the Reliance Jio role?",
+      "type": "multihop",
+      "expect": "Yes, both list Feb 2015 - Sep/Sept 2018, Sr Manager Android App dev lead"
+    },
+    {
+      "q": "Across both resumes combined, what technical skills/tech stacks are listed?",
+      "type": "aggregation",
+      "expect": "Java, SQL, Go, Flutter, Android(Java)/iOS(C#), Node JS, Ruby, Angular JS, Next JS, solution architecture, microservices, design patterns, app security"
+    },
+    {
+      "q": "How many Mumbai pick-up points are offered for the trip, and what are they?",
+      "type": "aggregation",
+      "expect": "9: Dadar Shivaji Park, Chembur Diamond Garden, Goregoan Nesco Park, Borivali National Park, Bandra Kalanagar Signal, Vashi Highway Junction, Thane, Mulund Eastern Express Highway Signal, Kharghar"
+    },
+    {
+      "q": "What is Jalpesh's father's name?",
+      "type": "unanswerable",
+      "expect": "not in the context"
+    },
+    {
+      "q": "What is the total budget or per-person cost for the Udaipur-Jaisalmer trip?",
+      "type": "unanswerable",
+      "expect": "not in the context - no pricing given"
+    },
+    {
+      "q": "What blood type is listed on the Aadhaar card?",
+      "type": "unanswerable",
+      "expect": "not in the context - Aadhaar cards do not list blood type"
+    },
+    {
+      "q": "What flight number and airline are used to reach Udaipur?",
+      "type": "unanswerable",
+      "expect": "not in the context - itinerary lists only local transport, no flights"
+    },
+    {
+      "q": "What grades or marks did Hetansh get on his most recent school report card?",
+      "type": "unanswerable",
+      "expect": "not in the context - only school name (GSGS) is given"
+    },
+    {
+      "q": "What was Jalpesh's starting salary at his very first job?",
+      "type": "unanswerable",
+      "expect": "not in the context"
+    }
+  ]
+}

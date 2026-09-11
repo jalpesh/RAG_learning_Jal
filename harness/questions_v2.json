@@ -1,0 +1,25 @@
+{
+  "_note": "Second eval set, for the 31-file PDF+DOCX corpus added after questions.json's original 5-file set. Same four types. Includes a deliberate itinerary-draft-conflict probe (two different documents genuinely disagree on Day 1's schedule) and a confirmed real unanswerable trap (chess tournament's 'Total Prize Fund:' field is present but blank in the source PDF).",
+  "questions": [
+    {"q": "What is the reporting time for the chess tournament?", "type": "factual", "expect": "09:00 am"},
+    {"q": "How much does the non-veg menu cost for adults at Amalfi Chalet?", "type": "factual", "expect": "Rs 1200"},
+    {"q": "What accounting method does the KoinX tax report use?", "type": "factual", "expect": "First-in First-out (FIFO)"},
+    {"q": "What financial year does the KoinX tax report cover?", "type": "factual", "expect": "2024-25"},
+    {"q": "What Writ Petition number is referenced in the High Court order?", "type": "factual", "expect": "2634 of 2008 (with 2664/08)"},
+    {"q": "What does the Hetansh Puzzle Game's Splash Screen do?", "type": "factual", "expect": "shows logo + loading animation, auto-proceeds to sign-in for new users"},
+
+    {"q": "According to the Bullforce whitepaper's table of contents, which section comes right after 'Key Features and Capabilities'?", "type": "multihop", "expect": "Use Cases and Specific areas where the cutting edge technology is applied"},
+    {"q": "Per the tax report, whose report is it and what currency is used?", "type": "multihop", "expect": "Jalpesh Rajani, INR"},
+    {"q": "Comparing the Camp Ethnosphere form and the Udaipur/Jaisalmer itinerary, which trip happens earlier in the year - the summer camp or the desert trip?", "type": "multihop", "expect": "Camp Ethnosphere (Summer 2025, April/May) happens earlier than the Udaipur/Jaisalmer trip (28 Nov - 3 Jan)"},
+    {"q": "Do the 'Optimized' and 'DesertTheme' itinerary drafts describe the same Day 1 schedule?", "type": "multihop", "expect": "No - Optimized has a detailed 3PM arrival + City Palace + evening Bagore Ki Haveli sequence; DesertTheme's Day 1 is comparatively sparse. The drafts genuinely differ - a good answer should note the discrepancy rather than silently pick one."},
+
+    {"q": "List all TDCA officials named for emergency contact at the chess tournament, with their roles.", "type": "aggregation", "expect": "Dr. Deepak Tandel (IA), Mr. Mohit Ladhe (IA), Mr. Rahul Joshi (registration contact, National Instructor & International Arbiter)"},
+    {"q": "Summarize what Grade V covered in English, Science, and Math according to the content-coverage document.", "type": "aggregation", "expect": "English: adjective types/degree of comparison; Science: Ch.3 notes + Ch.2 worksheet; Math: operations on large numbers, subtraction"},
+    {"q": "What meals and time slots are listed in the Amalfi Chalet food menu?", "type": "aggregation", "expect": "Lunch 1:30-2:30 PM, Dinner 8:30-10:30 PM, plus Hi-tea and next-day breakfast mentioned in the package"},
+
+    {"q": "What is the total prize fund for the chess tournament?", "type": "unanswerable", "expect": "not stated - the field is present in the document but left blank"},
+    {"q": "What programming language or game engine is the Hetansh Puzzle Game built in?", "type": "unanswerable", "expect": "not in the context - it's a UX/screen spec, not a tech stack doc"},
+    {"q": "What was the final ruling or verdict in the High Court Writ Petition?", "type": "unanswerable", "expect": "not in the context unless the order's operative section is retrieved and actually states one - verify against the source, don't assume"},
+    {"q": "What is the license plate number of the vehicle used for the Udaipur-Jaisalmer transfers?", "type": "unanswerable", "expect": "not in the context"}
+  ]
+}

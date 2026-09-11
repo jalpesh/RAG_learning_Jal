@@ -1,0 +1,18 @@
+# Handoff
+
+Current state: repository setup and production-readiness audit complete.
+
+Verification commands:
+
+```bash
+uv sync --locked
+uv run python -m compileall -q rag service bench harness scripts tests
+uv run python -m unittest discover -s tests -v
+uv run python -m rag.confidence
+uv run python -m rag.route
+```
+
+Hardware-dependent generation was not re-benchmarked during repository setup.
+Existing benchmark evidence remains in the ignored `bench/results/` directory.
+The next implementation target is the single-node production milestone in
+`docs/03-production-readiness.md`.

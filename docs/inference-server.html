@@ -1,0 +1,991 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  html { color-scheme: light dark; }
+  body { margin: 0; }
+  img { max-width: 100%; }
+  [hidden] { display: none !important; }
+</style>
+<title>Anatomy of an Inference Server</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400;600&display=swap">
+
+<style>
+  :root {
+    --ground:      #ECEFF2;
+    --surface:     #F7F9FA;
+    --surface-2:   #E0E6EA;
+    --ink:         #12181E;
+    --ink-2:       #45525D;
+    --ink-3:       #77848F;
+    --rule:        #C9D2D8;
+    --rule-soft:   #DCE3E8;
+    --copper:      #A2551F;
+    --teal:        #0A6461;
+    --crimson:     #8E2437;
+    --hot-wash:    rgba(162, 85, 31, 0.09);
+    --cool-wash:   rgba(10, 100, 97, 0.09);
+
+    --f-display: "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif;
+    --f-body:    "Source Serif 4", Georgia, "Times New Roman", serif;
+    --f-mono:    "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+    color-scheme: light;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:    #0E1318;
+      --surface:   #161D23;
+      --surface-2: #1E272E;
+      --ink:       #E5EBF0;
+      --ink-2:     #A2B0BA;
+      --ink-3:     #73828E;
+      --rule:      #2B353D;
+      --rule-soft: #212B32;
+      --copper:    #DE9145;
+      --teal:      #45B8B1;
+      --crimson:   #E06B81;
+      --hot-wash:  rgba(222, 145, 69, 0.12);
+      --cool-wash: rgba(69, 184, 177, 0.12);
+      color-scheme: dark;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:    #0E1318;
+    --surface:   #161D23;
+    --surface-2: #1E272E;
+    --ink:       #E5EBF0;
+    --ink-2:     #A2B0BA;
+    --ink-3:     #73828E;
+    --rule:      #2B353D;
+    --rule-soft: #212B32;
+    --copper:    #DE9145;
+    --teal:      #45B8B1;
+    --crimson:   #E06B81;
+    --hot-wash:  rgba(222, 145, 69, 0.12);
+    --cool-wash: rgba(69, 184, 177, 0.12);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--f-body);
+    font-size: 17px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1060px;
+    margin: 0 auto;
+    padding: 0 28px 96px;
+  }
+
+  .col { max-width: 66ch; }
+
+  p { margin: 0 0 1.1em; color: var(--ink-2); }
+  p strong { color: var(--ink); font-weight: 600; }
+  a { color: var(--copper); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+  code {
+    font-family: var(--f-mono);
+    font-size: 0.86em;
+    background: var(--surface-2);
+    padding: 0.12em 0.38em;
+    border-radius: 3px;
+    color: var(--ink);
+  }
+
+  /* ---------- masthead ---------- */
+
+  header.masthead {
+    border-bottom: 1px solid var(--rule);
+    padding: 72px 0 40px;
+    margin-bottom: 56px;
+  }
+
+  .eyebrow {
+    font-family: var(--f-mono);
+    font-size: 11.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 0 0 22px;
+  }
+  .eyebrow .hot { color: var(--copper); }
+
+  h1 {
+    font-family: var(--f-display);
+    font-weight: 800;
+    font-size: clamp(38px, 6.4vw, 66px);
+    line-height: 1.02;
+    letter-spacing: -0.028em;
+    margin: 0 0 24px;
+    text-wrap: balance;
+    max-width: 16ch;
+  }
+
+  .standfirst {
+    font-size: 20px;
+    line-height: 1.5;
+    color: var(--ink-2);
+    max-width: 58ch;
+    margin: 0;
+  }
+  .standfirst em { font-style: italic; color: var(--ink); }
+
+  /* ---------- sections ---------- */
+
+  section { margin-bottom: 68px; }
+
+  h2 {
+    font-family: var(--f-display);
+    font-weight: 700;
+    font-size: clamp(25px, 3.2vw, 33px);
+    line-height: 1.14;
+    letter-spacing: -0.02em;
+    margin: 0 0 8px;
+    text-wrap: balance;
+  }
+
+  h3 {
+    font-family: var(--f-display);
+    font-weight: 700;
+    font-size: 19px;
+    letter-spacing: -0.01em;
+    margin: 0 0 6px;
+    color: var(--ink);
+  }
+
+  .kicker {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 0 0 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .kicker::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--rule-soft);
+  }
+
+  .lede { font-size: 18.5px; color: var(--ink-2); margin-bottom: 1.5em; max-width: 62ch; }
+
+  /* ---------- provenance banner ---------- */
+
+  .provenance {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    margin: 0 0 20px;
+  }
+  .provenance > div {
+    background: var(--surface);
+    padding: 18px 20px 20px;
+  }
+  .provenance .tag {
+    font-family: var(--f-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 8px;
+  }
+  .provenance .t-doc  { color: var(--teal); }
+  .provenance .t-pub  { color: var(--copper); }
+  .provenance .t-inf  { color: var(--crimson); }
+  .provenance p { margin: 0; font-size: 15px; line-height: 1.5; }
+
+  /* ---------- figures ---------- */
+
+  figure {
+    margin: 34px 0 40px;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    padding: 26px 24px 20px;
+  }
+  .fig-scroll { overflow-x: auto; }
+  figure svg { display: block; width: 100%; min-width: 620px; height: auto; color: var(--ink); }
+  figcaption {
+    font-family: var(--f-mono);
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: var(--ink-3);
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid var(--rule-soft);
+    max-width: 84ch;
+  }
+  figcaption b { color: var(--ink-2); font-weight: 600; }
+
+  /* ---------- stage list ---------- */
+
+  .stages { display: flex; flex-direction: column; gap: 1px; background: var(--rule); border: 1px solid var(--rule); }
+  .stage {
+    background: var(--surface);
+    display: grid;
+    grid-template-columns: 62px 1fr;
+    gap: 20px;
+    padding: 22px 24px 24px;
+    align-items: start;
+  }
+  .stage .num {
+    font-family: var(--f-mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--copper);
+    letter-spacing: 0.08em;
+    padding-top: 4px;
+  }
+  .stage .num small { display: block; color: var(--ink-3); font-weight: 400; margin-top: 5px; letter-spacing: 0; }
+  .stage p { margin: 0; font-size: 16px; }
+  .stage p + p { margin-top: 0.7em; }
+
+  /* ---------- metrics ---------- */
+
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    margin: 30px 0 14px;
+  }
+  .metric { background: var(--surface); padding: 20px 20px 22px; }
+  .metric .val {
+    font-family: var(--f-display);
+    font-weight: 700;
+    font-size: 30px;
+    letter-spacing: -0.025em;
+    line-height: 1;
+    color: var(--copper);
+    font-variant-numeric: tabular-nums;
+  }
+  .metric .val.cool { color: var(--teal); }
+  .metric .lbl { font-size: 14.5px; color: var(--ink-2); margin-top: 9px; line-height: 1.45; }
+  .metric .src { font-family: var(--f-mono); font-size: 10.5px; color: var(--ink-3); margin-top: 9px; letter-spacing: 0.04em; }
+
+  /* ---------- table ---------- */
+
+  .tbl-scroll { overflow-x: auto; border: 1px solid var(--rule); margin: 28px 0 12px; }
+  table { border-collapse: collapse; width: 100%; min-width: 660px; background: var(--surface); }
+  th, td { text-align: left; padding: 14px 18px; border-bottom: 1px solid var(--rule-soft); vertical-align: top; font-size: 15px; }
+  thead th {
+    font-family: var(--f-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    font-weight: 400;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--rule);
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td:first-child { font-family: var(--f-display); font-weight: 600; color: var(--ink); font-size: 15px; }
+  td { color: var(--ink-2); }
+  td .yes { color: var(--teal); font-family: var(--f-mono); font-size: 13px; }
+  td .no  { color: var(--crimson); font-family: var(--f-mono); font-size: 13px; }
+
+  /* ---------- pull ---------- */
+
+  .pull {
+    border-left: 3px solid var(--copper);
+    background: var(--hot-wash);
+    padding: 20px 24px;
+    margin: 32px 0;
+    max-width: 64ch;
+  }
+  .pull p { margin: 0; color: var(--ink); font-size: 18px; line-height: 1.5; }
+
+  .note {
+    border-left: 3px solid var(--teal);
+    background: var(--cool-wash);
+    padding: 18px 22px;
+    margin: 28px 0;
+    max-width: 66ch;
+  }
+  .note p { margin: 0; font-size: 15.5px; }
+  .note p + p { margin-top: 0.8em; }
+
+  /* ---------- sources ---------- */
+
+  footer {
+    border-top: 1px solid var(--rule);
+    padding-top: 30px;
+    margin-top: 20px;
+  }
+  footer h2 { font-size: 19px; margin-bottom: 16px; }
+  footer ol { margin: 0; padding-left: 20px; }
+  footer li { font-size: 14.5px; color: var(--ink-2); margin-bottom: 9px; line-height: 1.5; }
+
+  @media (max-width: 620px) {
+    body { font-size: 16px; }
+    .wrap { padding: 0 20px 72px; }
+    .stage { grid-template-columns: 1fr; gap: 10px; }
+    figure { padding: 18px 14px 14px; }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    a:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--copper); outline-offset: 3px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <p class="eyebrow">System design note <span class="hot">/</span> Frontier-scale LLM serving</p>
+    <h1>Anatomy of an Inference Server</h1>
+    <p class="standfirst">What actually happens in the two seconds between your keystroke and the first streamed token — and which parts of it are <em>physics</em>, which are <em>engineering</em>, and which you can reproduce on a laptop.</p>
+  </header>
+
+  <section>
+    <p class="kicker">Read this first</p>
+    <h2>No frontier lab publishes its serving stack</h2>
+    <p class="lede">Anthropic, OpenAI and Google publish capacity, chips and API semantics. None of them publish their inference topology — it is the operational moat. So this page is explicit about where every claim comes from, and you should hold it to that standard.</p>
+
+    <div class="provenance">
+      <div>
+        <span class="tag t-doc">Documented</span>
+        <p>Chip counts, gigawatts, cloud partners, and the exact behaviour of the prompt-caching API — all published by Anthropic and AWS.</p>
+      </div>
+      <div>
+        <span class="tag t-pub">Published research</span>
+        <p>Prefill/decode disaggregation, PagedAttention, continuous batching, KV-cache tiering. Open literature, deployed industry-wide.</p>
+      </div>
+      <div>
+        <span class="tag t-inf">Inferred</span>
+        <p>How those pieces are wired together at Anthropic specifically. Reasoned from observable API behaviour, not disclosed. Marked where used.</p>
+      </div>
+    </div>
+
+    <div class="metrics">
+      <div class="metric">
+        <div class="val">1M+</div>
+        <div class="lbl">Trainium2 chips training <em>and serving</em> Claude</div>
+        <div class="src">Documented · Anthropic / AWS</div>
+      </div>
+      <div class="metric">
+        <div class="val">5 GW</div>
+        <div class="lbl">Contracted AWS capacity; inference expanding into Asia and Europe</div>
+        <div class="src">Documented · Anthropic / AWS</div>
+      </div>
+      <div class="metric">
+        <div class="val cool">0.1&times;</div>
+        <div class="lbl">Price of a cached input token vs. a fresh one</div>
+        <div class="src">Documented · Claude API</div>
+      </div>
+      <div class="metric">
+        <div class="val cool">50–90%</div>
+        <div class="lbl">KV-cache reuse observed in production serving</div>
+        <div class="src">Published · HotInfra '26</div>
+      </div>
+    </div>
+    <p style="font-family:var(--f-mono);font-size:12px;color:var(--ink-3);margin-top:14px;">Multi-cloud by design: AWS Trainium 2/3, Google TPU via the Broadcom agreement, and NVIDIA — a deliberate hedge on supply and price, not a technical preference.</p>
+  </section>
+
+  <section>
+    <p class="kicker">The path a request takes</p>
+    <h2>One prompt, seven hops</h2>
+    <p class="lede">The single most important structural fact: a modern inference server is not one program. Prefill and decode are split across <em>different machines with different hardware profiles</em>, because they are different workloads that happen to share a model.</p>
+
+    <figure class="fig-scroll">
+      <svg viewBox="0 0 1020 470" role="img" aria-label="Request flow through an inference server: edge gateway, admission control and router, prefill workers, KV cache pool, decode workers, and token streaming, with a prefix cache above the router.">
+        <defs>
+          <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+          </marker>
+          <marker id="ar-hot" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#A2551F"/>
+          </marker>
+          <marker id="ar-cool" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#0A6461"/>
+          </marker>
+        </defs>
+
+        <!-- prefix cache (top) -->
+        <rect x="360" y="26" width="300" height="62" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="4 3" opacity="0.75"/>
+        <text x="510" y="50" text-anchor="middle" font-family="Bricolage Grotesque, sans-serif" font-size="14" font-weight="700" fill="currentColor">Prefix / prompt cache</text>
+        <text x="510" y="70" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" fill="currentColor" opacity="0.62">hash of prompt prefix → stored KV</text>
+        <text x="510" y="105" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10.5" fill="#0A6461">hit = skip prefill entirely</text>
+
+        <line x1="440" y1="118" x2="440" y2="163" stroke="#0A6461" stroke-width="1.4" marker-end="url(#ar-cool)"/>
+        <line x1="300" y1="163" x2="300" y2="92" stroke="currentColor" stroke-width="1" opacity="0.5" marker-end="url(#ar)"/>
+        <text x="292" y="130" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="10" fill="currentColor" opacity="0.6">lookup</text>
+
+        <!-- main row -->
+        <rect x="16" y="168" width="118" height="74" fill="none" stroke="currentColor" stroke-width="1.4"/>
+        <text x="75" y="197" text-anchor="middle" font-family="Bricolage Grotesque, sans-serif" font-size="13.5" font-weight="700" fill="currentColor">Edge / API</text>
+        <text x="75" y="215" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="currentColor" opacity="0.6">auth, quota</text>
+        <text x="75" y="232" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="currentColor" opacity="0.6">region pin</text>
+
+        <rect x="178" y="168" width="152" height="74" fill="none" stroke="currentColor" stroke-width="1.4"/>
+        <text x="254" y="192" text-anchor="middle" font-family="Bricolage Grotesque, sans-serif" font-size="13.5" font-weight="700" fill="currentColor">Admission</text>
+        <text x="254" y="208" text-anchor="middle" font-family="Bricolage Grotesque, sans-serif" font-size="13.5" font-weight="700" fill="currentColor">+ router</text>
+        <text x="254" y="228" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="currentColor" opacity="0.6">queue, shed, shard</text>
+
+        <rect x="374" y="168" width="172" height="74" fill="none" stroke="#A2551F" stroke-width="2"/>
+        <rect x="374" y="168" width="172" height="74" fill="#A2551F" opacity="0.08"/>
+        <text x="460" y="194" text-anchor="middle" font-family="Bricolage Grotesque, sans-serif" font-size="14" font-weight="700" fill="#A2551F">Prefill workers</text>
+        <text x="460" y="213" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10.5" fill="#A2551F">compute-bound</text>
+        <text x="460" y="230" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="currentColor" opacity="0.62">whole prompt, one pass</text>
+
+        <rect x="618" y="168" width="172" height="74" fill="none" stroke="#0A6461" stroke-width="2"/>
+        <rect x="618" y="168" width="172" height="74" fill="#0A6461" opacity="0.08"/>
+        <text x="704" y="194" text-anchor="middle" font-family="Bricolage Grotesque, sans-serif" font-size="14" font-weight="700" fill="#0A6461">Decode workers</text>
+        <text x="704" y="213" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10.5" fill="#0A6461">memory-bound</text>
+        <text x="704" y="230" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="currentColor" opacity="0.62">one token per pass</text>
+
+        <rect x="858" y="168" width="146" height="74" fill="none" stroke="currentColor" stroke-width="1.4"/>
+        <text x="931" y="197" text-anchor="middle" font-family="Bricolage Grotesque, sans-serif" font-size="13.5" font-weight="700" fill="currentColor">Stream out</text>
+        <text x="931" y="215" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="currentColor" opacity="0.6">SSE, token by</text>
+        <text x="931" y="232" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="currentColor" opacity="0.6">token</text>
+
+        <!-- horizontal arrows -->
+        <line x1="134" y1="205" x2="176" y2="205" stroke="currentColor" stroke-width="1.4" marker-end="url(#ar)"/>
+        <line x1="330" y1="205" x2="372" y2="205" stroke="currentColor" stroke-width="1.4" marker-end="url(#ar)"/>
+        <line x1="546" y1="205" x2="616" y2="205" stroke="#A2551F" stroke-width="2" marker-end="url(#ar-hot)"/>
+        <text x="581" y="196" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#A2551F">KV handoff</text>
+        <line x1="790" y1="205" x2="856" y2="205" stroke="#0A6461" stroke-width="2" marker-end="url(#ar-cool)"/>
+        <text x="823" y="196" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#0A6461">1 tok</text>
+
+        <!-- decode self-loop -->
+        <path d="M 704 168 C 704 140, 780 140, 780 168" fill="none" stroke="#0A6461" stroke-width="1.4" marker-end="url(#ar-cool)"/>
+        <text x="742" y="136" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#0A6461">&times; N tokens</text>
+
+        <!-- KV pool -->
+        <rect x="374" y="316" width="416" height="76" fill="none" stroke="currentColor" stroke-width="1.4"/>
+        <text x="582" y="342" text-anchor="middle" font-family="Bricolage Grotesque, sans-serif" font-size="14" font-weight="700" fill="currentColor">KV cache pool — paged, tiered</text>
+        <text x="582" y="362" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10.5" fill="currentColor" opacity="0.68">HBM (hot)  →  CXL / DRAM (warm)  →  NVMe (cold)</text>
+        <text x="582" y="381" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10.5" fill="#0A6461">50–90% reuse in production</text>
+
+        <line x1="440" y1="244" x2="440" y2="314" stroke="#A2551F" stroke-width="1.6" marker-end="url(#ar-hot)"/>
+        <text x="432" y="284" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="10" fill="#A2551F">writes KV</text>
+
+        <line x1="704" y1="314" x2="704" y2="244" stroke="#0A6461" stroke-width="1.6" marker-end="url(#ar-cool)"/>
+        <text x="714" y="284" font-family="JetBrains Mono, monospace" font-size="10" fill="#0A6461">reads KV, every token</text>
+
+        <!-- latency rail -->
+        <line x1="16" y1="432" x2="1004" y2="432" stroke="currentColor" stroke-width="1" opacity="0.28"/>
+        <text x="16" y="424" font-family="JetBrains Mono, monospace" font-size="10" fill="currentColor" opacity="0.55">t=0</text>
+        <text x="254" y="452" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10.5" fill="currentColor" opacity="0.72">queue: 0–&#8734; (the real variable)</text>
+        <text x="460" y="452" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10.5" fill="#A2551F">prefill: scales with prompt</text>
+        <text x="704" y="452" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10.5" fill="#0A6461">decode: scales with answer</text>
+        <text x="931" y="452" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10.5" fill="currentColor" opacity="0.72">TTFT ends here</text>
+      </svg>
+      <figcaption><b>The split is the architecture.</b> Prefill and decode run on separately provisioned pools because one is starved for FLOPs and the other for memory bandwidth. Everything else — the router, the paged KV pool, the prefix cache — exists to keep those two pools busy. Note where <b>time-to-first-token</b> actually ends: the user's perception of speed is decided before the second token is even computed.</figcaption>
+    </figure>
+
+    <div class="stages">
+      <div class="stage">
+        <div class="num">01<small>edge</small></div>
+        <div>
+          <h3>Terminate, authenticate, pin a region</h3>
+          <p>Auth, org quota, abuse checks, and — increasingly the interesting part — data-residency routing. Anthropic expanded inference into Asia and Europe rather than serving everything from US capacity: a legal constraint expressed as network topology. Worth noticing as a general pattern, because it is one of the few places where regulation directly shapes where silicon is installed.</p>
+        </div>
+      </div>
+      <div class="stage">
+        <div class="num">02<small>admit</small></div>
+        <div>
+          <h3>Admission control — the layer everyone forgets</h3>
+          <p>A queue with no admission policy converts overload into universal timeout. Production servers shed, prioritise and rate-limit here, and route by expected cost: short or cache-hot prompts stay local, long uncached prefills get sent to dedicated capacity. Published results show <strong>54% higher throughput and 64% lower P90 TTFT</strong> from selective routing alone.</p>
+          <p>This is also where your tier lives. Batch API traffic is admitted at a different priority to interactive traffic — same model, same silicon, different queue.</p>
+        </div>
+      </div>
+      <div class="stage">
+        <div class="num">03<small>cache</small></div>
+        <div>
+          <h3>Check the prefix cache before computing anything</h3>
+          <p>The cheapest prefill is the one you skip. Claude's API exposes this mechanism directly: mark a breakpoint, and the system hashes the prompt prefix up to that point and looks for stored KV. A hit costs <strong>0.1&times;</strong> the price of fresh input tokens — a 10&times; discount that is really a latency discount wearing a price tag.</p>
+        </div>
+      </div>
+      <div class="stage">
+        <div class="num">04<small>prefill</small></div>
+        <div>
+          <h3>Prefill: one enormous parallel pass</h3>
+          <p>Every token of the prompt is processed at once, producing the KV cache for the sequence. Big dense matmuls, high arithmetic intensity, GPU/Trainium fully saturated. Cost scales with prompt length — which is why a 100k-token context costs real money in latency, not just billing.</p>
+        </div>
+      </div>
+      <div class="stage">
+        <div class="num">05<small>handoff</small></div>
+        <div>
+          <h3>Move the KV cache to a decode worker</h3>
+          <p>The hard engineering problem in disaggregated serving. Multi-gigabyte KV tensors move over NVLink/NeuronLink, CXL or NVMe-oF, and if the transfer is slower than the prefill it saved, the whole design is a loss. This hop is why disaggregation stayed a research idea until interconnects got fast enough.</p>
+        </div>
+      </div>
+      <div class="stage">
+        <div class="num">06<small>decode</small></div>
+        <div>
+          <h3>Decode: N sequential passes, one token each</h3>
+          <p>Each token reloads the full model weights and re-reads a KV cache that grows with every step. Arithmetic intensity collapses to roughly <strong>0.5 ops/byte</strong>, and accelerators spend <strong>over 70% of decode time waiting on memory</strong>. No amount of FLOPs fixes this — it is a bandwidth problem, and it is why decode gets its own hardware profile.</p>
+        </div>
+      </div>
+      <div class="stage">
+        <div class="num">07<small>stream</small></div>
+        <div>
+          <h3>Stream, because perceived latency is the product</h3>
+          <p>A 12-second answer that starts in 300&nbsp;ms feels faster than a 4-second answer delivered as a block. Streaming is not a UX nicety bolted on at the end; it is the reason the entire stack optimises time-to-first-token as a separate metric from throughput.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="kicker">The physics underneath</p>
+    <h2>Why one model needs two kinds of machine</h2>
+    <p class="lede">This is the single idea that explains most of the architecture above. It is also the idea that explains why your local RAG feels slow in a way that no amount of code tidying will fix.</p>
+
+    <figure class="fig-scroll">
+      <svg viewBox="0 0 1020 330" role="img" aria-label="Comparison of prefill and decode: prefill processes four thousand tokens in one wide compute pass, while decode performs four hundred sequential passes each reloading model weights and a growing KV cache from memory.">
+        <defs>
+          <marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+
+        <line x1="510" y1="20" x2="510" y2="310" stroke="currentColor" stroke-width="1" opacity="0.22"/>
+
+        <!-- PREFILL -->
+        <text x="30" y="38" font-family="Bricolage Grotesque, sans-serif" font-size="15" font-weight="700" fill="#A2551F">PREFILL — compute-bound</text>
+        <text x="30" y="58" font-family="JetBrains Mono, monospace" font-size="11" fill="currentColor" opacity="0.65">4,000 prompt tokens, one pass</text>
+
+        <rect x="30" y="84" width="440" height="72" fill="#A2551F" opacity="0.16"/>
+        <rect x="30" y="84" width="440" height="72" fill="none" stroke="#A2551F" stroke-width="1.6"/>
+        <text x="250" y="118" text-anchor="middle" font-family="Bricolage Grotesque, sans-serif" font-size="14" font-weight="700" fill="#A2551F">one wide matmul over all 4,000 tokens</text>
+        <text x="250" y="140" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" fill="currentColor" opacity="0.7">weights loaded once · silicon saturated</text>
+
+        <line x1="30" y1="176" x2="470" y2="176" stroke="currentColor" stroke-width="1" opacity="0.4" marker-end="url(#ar2)"/>
+        <text x="30" y="196" font-family="JetBrains Mono, monospace" font-size="10.5" fill="currentColor" opacity="0.6">time</text>
+
+        <rect x="30" y="216" width="440" height="76" fill="none" stroke="currentColor" stroke-width="1" opacity="0.35"/>
+        <text x="48" y="242" font-family="JetBrains Mono, monospace" font-size="11.5" fill="currentColor">arithmetic intensity: HIGH</text>
+        <text x="48" y="263" font-family="JetBrains Mono, monospace" font-size="11.5" fill="currentColor">bottleneck: FLOPs</text>
+        <text x="48" y="284" font-family="JetBrains Mono, monospace" font-size="11.5" fill="#A2551F">wants: more compute</text>
+
+        <!-- DECODE -->
+        <text x="550" y="38" font-family="Bricolage Grotesque, sans-serif" font-size="15" font-weight="700" fill="#0A6461">DECODE — memory-bound</text>
+        <text x="550" y="58" font-family="JetBrains Mono, monospace" font-size="11" fill="currentColor" opacity="0.65">400 output tokens, 400 passes</text>
+
+        <g stroke="#0A6461" stroke-width="1.5">
+          <line x1="554" y1="84" x2="554" y2="156"/><line x1="566" y1="84" x2="566" y2="156"/>
+          <line x1="578" y1="84" x2="578" y2="156"/><line x1="590" y1="84" x2="590" y2="156"/>
+          <line x1="602" y1="84" x2="602" y2="156"/><line x1="614" y1="84" x2="614" y2="156"/>
+          <line x1="626" y1="84" x2="626" y2="156"/><line x1="638" y1="84" x2="638" y2="156"/>
+          <line x1="650" y1="84" x2="650" y2="156"/><line x1="662" y1="84" x2="662" y2="156"/>
+          <line x1="674" y1="84" x2="674" y2="156"/><line x1="686" y1="84" x2="686" y2="156"/>
+          <line x1="698" y1="84" x2="698" y2="156"/><line x1="710" y1="84" x2="710" y2="156"/>
+          <line x1="722" y1="84" x2="722" y2="156"/><line x1="734" y1="84" x2="734" y2="156"/>
+          <line x1="746" y1="84" x2="746" y2="156"/><line x1="758" y1="84" x2="758" y2="156"/>
+          <line x1="770" y1="84" x2="770" y2="156"/><line x1="782" y1="84" x2="782" y2="156"/>
+          <line x1="794" y1="84" x2="794" y2="156"/><line x1="806" y1="84" x2="806" y2="156"/>
+          <line x1="818" y1="84" x2="818" y2="156"/><line x1="830" y1="84" x2="830" y2="156"/>
+          <line x1="842" y1="84" x2="842" y2="156"/><line x1="854" y1="84" x2="854" y2="156"/>
+          <line x1="866" y1="84" x2="866" y2="156"/><line x1="878" y1="84" x2="878" y2="156"/>
+          <line x1="890" y1="84" x2="890" y2="156"/><line x1="902" y1="84" x2="902" y2="156"/>
+          <line x1="914" y1="84" x2="914" y2="156"/><line x1="926" y1="84" x2="926" y2="156"/>
+          <line x1="938" y1="84" x2="938" y2="156"/><line x1="950" y1="84" x2="950" y2="156"/>
+          <line x1="962" y1="84" x2="962" y2="156"/><line x1="974" y1="84" x2="974" y2="156"/>
+          <line x1="986" y1="84" x2="986" y2="156"/><line x1="998" y1="84" x2="998" y2="156"/>
+        </g>
+        <text x="776" y="76" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10.5" fill="#0A6461">each tick = reload ALL weights + re-read growing KV</text>
+
+        <line x1="550" y1="176" x2="1002" y2="176" stroke="currentColor" stroke-width="1" opacity="0.4" marker-end="url(#ar2)"/>
+        <text x="550" y="196" font-family="JetBrains Mono, monospace" font-size="10.5" fill="currentColor" opacity="0.6">time</text>
+
+        <rect x="550" y="216" width="452" height="76" fill="none" stroke="currentColor" stroke-width="1" opacity="0.35"/>
+        <text x="568" y="242" font-family="JetBrains Mono, monospace" font-size="11.5" fill="currentColor">arithmetic intensity: &#8776; 0.5 ops/byte</text>
+        <text x="568" y="263" font-family="JetBrains Mono, monospace" font-size="11.5" fill="currentColor">bottleneck: &gt;70% of time waiting on memory</text>
+        <text x="568" y="284" font-family="JetBrains Mono, monospace" font-size="11.5" fill="#0A6461">wants: more bandwidth</text>
+      </svg>
+      <figcaption><b>Same weights, opposite bottlenecks.</b> Prefill does one wide pass and saturates the compute units. Decode does hundreds of narrow passes, each dominated by dragging weights and a lengthening KV cache across the memory bus. Running both on one homogeneous pool means one of them is always wasting the hardware — which is the entire case for disaggregation.</figcaption>
+    </figure>
+
+    <div class="pull">
+      <p>Decode speed is not a software problem. Tokens per second is memory bandwidth divided by model bytes — and on your Mac, that is a number you can look up rather than optimise.</p>
+    </div>
+  </section>
+
+  <section>
+    <p class="kicker">The economics</p>
+    <h2>Continuous batching is why a token costs cents</h2>
+    <p class="lede">Serving efficiency comes from keeping the accelerator busy. The technique that made LLM serving commercially viable is unglamorous: never idle a batch slot waiting for the slowest sequence to finish.</p>
+
+    <figure class="fig-scroll">
+      <svg viewBox="0 0 1020 320" role="img" aria-label="Static batching leaves large idle gaps because every slot waits for the longest sequence in the batch, while continuous batching immediately refills each slot as its sequence completes.">
+        <!-- STATIC -->
+        <text x="20" y="30" font-family="Bricolage Grotesque, sans-serif" font-size="14.5" font-weight="700" fill="currentColor">Static batching — slots wait for the longest sequence</text>
+
+        <g font-family="JetBrains Mono, monospace" font-size="10.5" fill="currentColor">
+          <text x="20" y="62" opacity="0.6">slot 1</text>
+          <text x="20" y="90" opacity="0.6">slot 2</text>
+          <text x="20" y="118" opacity="0.6">slot 3</text>
+          <text x="20" y="146" opacity="0.6">slot 4</text>
+        </g>
+
+        <rect x="76" y="48" width="640" height="18" fill="#0A6461" opacity="0.55"/>
+        <rect x="76" y="76" width="230" height="18" fill="#0A6461" opacity="0.55"/>
+        <rect x="306" y="76" width="410" height="18" fill="#8E2437" opacity="0.16"/>
+        <rect x="76" y="104" width="400" height="18" fill="#0A6461" opacity="0.55"/>
+        <rect x="476" y="104" width="240" height="18" fill="#8E2437" opacity="0.16"/>
+        <rect x="76" y="132" width="140" height="18" fill="#0A6461" opacity="0.55"/>
+        <rect x="216" y="132" width="500" height="18" fill="#8E2437" opacity="0.16"/>
+
+        <line x1="716" y1="40" x2="716" y2="164" stroke="#8E2437" stroke-width="1.4" stroke-dasharray="4 3"/>
+        <text x="726" y="112" font-family="JetBrains Mono, monospace" font-size="10.5" fill="#8E2437">batch releases here</text>
+        <text x="726" y="130" font-family="JetBrains Mono, monospace" font-size="10.5" fill="#8E2437">shaded = paid-for idle</text>
+
+        <line x1="20" y1="188" x2="1000" y2="188" stroke="currentColor" stroke-width="1" opacity="0.2"/>
+
+        <!-- CONTINUOUS -->
+        <text x="20" y="216" font-family="Bricolage Grotesque, sans-serif" font-size="14.5" font-weight="700" fill="currentColor">Continuous batching — a finished slot is refilled on the next step</text>
+
+        <g font-family="JetBrains Mono, monospace" font-size="10.5" fill="currentColor">
+          <text x="20" y="248" opacity="0.6">slot 1</text>
+          <text x="20" y="276" opacity="0.6">slot 2</text>
+          <text x="20" y="304" opacity="0.6">slot 3</text>
+        </g>
+
+        <rect x="76" y="234" width="300" height="18" fill="#0A6461" opacity="0.55"/>
+        <rect x="378" y="234" width="180" height="18" fill="#A2551F" opacity="0.5"/>
+        <rect x="560" y="234" width="156" height="18" fill="#0A6461" opacity="0.35"/>
+
+        <rect x="76" y="262" width="150" height="18" fill="#0A6461" opacity="0.55"/>
+        <rect x="228" y="262" width="260" height="18" fill="#A2551F" opacity="0.5"/>
+        <rect x="490" y="262" width="226" height="18" fill="#0A6461" opacity="0.35"/>
+
+        <rect x="76" y="290" width="410" height="18" fill="#0A6461" opacity="0.55"/>
+        <rect x="488" y="290" width="228" height="18" fill="#A2551F" opacity="0.5"/>
+
+        <line x1="716" y1="226" x2="716" y2="316" stroke="currentColor" stroke-width="1.2" stroke-dasharray="4 3" opacity="0.5"/>
+        <text x="726" y="266" font-family="JetBrains Mono, monospace" font-size="10.5" fill="#0A6461">same wall-clock,</text>
+        <text x="726" y="284" font-family="JetBrains Mono, monospace" font-size="10.5" fill="#0A6461">~2&#8211;3&times; the requests</text>
+      </svg>
+      <figcaption><b>The difference is the shaded area.</b> Under static batching every slot is billed until the longest sequence in the batch finishes; under continuous batching a completed sequence is evicted and a queued one admitted at the very next decode step. Paired with <b>PagedAttention</b> — which stores KV in fixed-size pages so a sequence needs no contiguous reservation — this is what turned per-token cost from dollars into cents.</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <p class="kicker">Worked example</p>
+    <h2>Now run a RAG on it</h2>
+    <p class="lede">RAG is the clearest way to see the stack, because it doesn't make one kind of request — it makes three, and only two of them are inference at all. Once you can name which is which, most RAG performance advice sorts itself into "true" and "cargo cult."</p>
+
+    <figure class="fig-scroll">
+      <svg viewBox="0 0 1020 510" role="img" aria-label="RAG data flow in two lanes: an offline ingest pipeline of documents, parsing, batch embedding and vector storage; and an online query pipeline of question embedding, nearest-neighbour search, prompt assembly and generation, with the vector store feeding the search step.">
+        <defs>
+          <marker id="ar3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+          </marker>
+          <marker id="ar3c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#0A6461"/>
+          </marker>
+        </defs>
+
+        <!-- ===== INGEST LANE ===== -->
+        <text x="20" y="30" font-family="Bricolage Grotesque, sans-serif" font-size="15" font-weight="700" fill="currentColor">INGEST — offline, runs once per document</text>
+        <text x="20" y="49" font-family="JetBrains Mono, monospace" font-size="10.5" fill="currentColor" opacity="0.62">optimise for throughput · latency does not matter · batch as large as memory allows</text>
+
+        <rect x="20" y="68" width="120" height="62" fill="none" stroke="currentColor" stroke-width="1.3"/>
+        <text x="80" y="95" text-anchor="middle" font-family="Bricolage Grotesque, sans-serif" font-size="13" font-weight="700" fill="currentColor">Documents</text>
+        <text x="80" y="114" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="currentColor" opacity="0.6">PDF, HTML, code</text>
+
+        <rect x="180" y="68" width="150" height="62" fill="none" stroke="currentColor" stroke-width="1.3"/>
+        <text x="255" y="95" text-anchor="middle" font-family="Bricolage Grotesque, sans-serif" font-size="13" font-weight="700" fill="currentColor">Parse + chunk</text>
+        <text x="255" y="114" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="currentColor" opacity="0.6">pure CPU string work</text>
+
+        <rect x="370" y="68" width="200" height="62" fill="#A2551F" opacity="0.08"/>
+        <rect x="370" y="68" width="200" height="62" fill="none" stroke="#A2551F" stroke-width="2"/>
+        <text x="470" y="93" text-anchor="middle" font-family="Bricolage Grotesque, sans-serif" font-size="13.5" font-weight="700" fill="#A2551F">Embedding model</text>
+        <text x="470" y="112" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10.5" fill="#A2551F">PREFILL ONLY — no decode</text>
+
+        <rect x="610" y="68" width="150" height="62" fill="none" stroke="currentColor" stroke-width="1.3"/>
+        <text x="685" y="95" text-anchor="middle" font-family="Bricolage Grotesque, sans-serif" font-size="13" font-weight="700" fill="currentColor">Vector store</text>
+        <text x="685" y="114" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="currentColor" opacity="0.6">vectors + text + ids</text>
+
+        <line x1="140" y1="99" x2="178" y2="99" stroke="currentColor" stroke-width="1.3" marker-end="url(#ar3)"/>
+        <line x1="330" y1="99" x2="368" y2="99" stroke="currentColor" stroke-width="1.3" marker-end="url(#ar3)"/>
+        <text x="349" y="90" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9.5" fill="currentColor" opacity="0.6">N chunks</text>
+        <line x1="570" y1="99" x2="608" y2="99" stroke="currentColor" stroke-width="1.3" marker-end="url(#ar3)"/>
+        <text x="589" y="90" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9.5" fill="currentColor" opacity="0.6">N vectors</text>
+
+        <text x="790" y="92" font-family="JetBrains Mono, monospace" font-size="10.5" fill="#A2551F">one batched pass over</text>
+        <text x="790" y="108" font-family="JetBrains Mono, monospace" font-size="10.5" fill="#A2551F">every chunk at once</text>
+        <text x="790" y="124" font-family="JetBrains Mono, monospace" font-size="10.5" fill="currentColor" opacity="0.6">= the whole ingest cost</text>
+
+        <!-- divider -->
+        <line x1="20" y1="176" x2="1000" y2="176" stroke="currentColor" stroke-width="1" opacity="0.2"/>
+
+        <!-- ===== QUERY LANE ===== -->
+        <text x="20" y="212" font-family="Bricolage Grotesque, sans-serif" font-size="15" font-weight="700" fill="currentColor">QUERY — online, runs on every question</text>
+        <text x="20" y="231" font-family="JetBrains Mono, monospace" font-size="10.5" fill="currentColor" opacity="0.62">optimise for time-to-first-token · batch of one · everything must already be warm</text>
+
+        <rect x="20" y="300" width="120" height="66" fill="none" stroke="currentColor" stroke-width="1.3"/>
+        <text x="80" y="330" text-anchor="middle" font-family="Bricolage Grotesque, sans-serif" font-size="13" font-weight="700" fill="currentColor">Question</text>
+        <text x="80" y="349" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="currentColor" opacity="0.6">~20 tokens</text>
+
+        <rect x="180" y="300" width="150" height="66" fill="#A2551F" opacity="0.08"/>
+        <rect x="180" y="300" width="150" height="66" fill="none" stroke="#A2551F" stroke-width="1.8"/>
+        <text x="255" y="326" text-anchor="middle" font-family="Bricolage Grotesque, sans-serif" font-size="13" font-weight="700" fill="#A2551F">Embed query</text>
+        <text x="255" y="344" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#A2551F">prefill only</text>
+        <text x="255" y="359" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="currentColor" opacity="0.6">batch of 1</text>
+
+        <rect x="370" y="300" width="150" height="66" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="4 3"/>
+        <text x="445" y="326" text-anchor="middle" font-family="Bricolage Grotesque, sans-serif" font-size="13" font-weight="700" fill="currentColor">Search + rank</text>
+        <text x="445" y="344" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="currentColor" opacity="0.72">NOT inference</text>
+        <text x="445" y="359" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="currentColor" opacity="0.6">a database op</text>
+
+        <rect x="560" y="300" width="160" height="66" fill="none" stroke="currentColor" stroke-width="1.3"/>
+        <text x="640" y="326" text-anchor="middle" font-family="Bricolage Grotesque, sans-serif" font-size="13" font-weight="700" fill="currentColor">Assemble prompt</text>
+        <text x="640" y="344" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="currentColor" opacity="0.6">system + chunks</text>
+        <text x="640" y="359" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="currentColor" opacity="0.6">+ question</text>
+
+        <rect x="760" y="300" width="240" height="66" fill="#0A6461" opacity="0.08"/>
+        <rect x="760" y="300" width="240" height="66" fill="none" stroke="#0A6461" stroke-width="2"/>
+        <text x="880" y="326" text-anchor="middle" font-family="Bricolage Grotesque, sans-serif" font-size="13.5" font-weight="700" fill="#0A6461">Generation model</text>
+        <text x="880" y="344" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10.5" fill="#0A6461">big PREFILL → short DECODE</text>
+        <text x="880" y="359" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="currentColor" opacity="0.6">stream tokens out</text>
+
+        <line x1="140" y1="333" x2="178" y2="333" stroke="currentColor" stroke-width="1.3" marker-end="url(#ar3)"/>
+        <line x1="330" y1="333" x2="368" y2="333" stroke="currentColor" stroke-width="1.3" marker-end="url(#ar3)"/>
+        <text x="349" y="324" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9.5" fill="currentColor" opacity="0.6">1 vec</text>
+        <line x1="520" y1="333" x2="558" y2="333" stroke="currentColor" stroke-width="1.3" marker-end="url(#ar3)"/>
+        <text x="539" y="324" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9.5" fill="currentColor" opacity="0.6">top-5</text>
+        <line x1="720" y1="333" x2="758" y2="333" stroke="currentColor" stroke-width="1.3" marker-end="url(#ar3)"/>
+        <text x="739" y="324" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9.5" fill="currentColor" opacity="0.6">~2k tok</text>
+
+        <!-- vector store feeds search -->
+        <path d="M 685 130 L 685 250 L 445 250 L 445 296" fill="none" stroke="#0A6461" stroke-width="1.6" marker-end="url(#ar3c)"/>
+        <text x="565" y="242" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#0A6461">the only link between the two pipelines</text>
+
+        <!-- budget rail -->
+        <line x1="20" y1="410" x2="1000" y2="410" stroke="currentColor" stroke-width="1" opacity="0.25"/>
+        <text x="20" y="432" font-family="JetBrains Mono, monospace" font-size="10.5" fill="currentColor" opacity="0.55">typical share of a warm query's time-to-first-token:</text>
+        <text x="255" y="456" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" fill="#A2551F">embed ~5%</text>
+        <text x="445" y="456" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" fill="currentColor" opacity="0.7">search &lt;1%</text>
+        <text x="640" y="456" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" fill="currentColor" opacity="0.7">assemble ~0%</text>
+        <text x="880" y="456" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" fill="#0A6461">prefill + first token ~95%</text>
+        <text x="20" y="486" font-family="JetBrains Mono, monospace" font-size="10.5" fill="currentColor" opacity="0.55">Tuning the 1% is the most popular activity in RAG engineering.</text>
+      </svg>
+      <figcaption><b>Two pipelines, one shared artefact.</b> Ingest and query have opposite objectives — throughput versus latency — and touch each other only through the vector store. Note the shapes: an <b>embedding call is prefill with no decode at all</b> (it emits a vector, not tokens), retrieval is <b>not inference</b>, and generation is the only step that uses both halves of the engine. The budget rail is the punchline: on a warm stack, the vector search everyone obsesses over is well under one percent of perceived latency.</figcaption>
+    </figure>
+
+    <h3 style="margin-top:34px;">Three shapes, and why it matters</h3>
+    <p>Sorting RAG's calls by shape rather than by name is what turns the architecture from a diagram into a set of decisions:</p>
+
+    <div class="tbl-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:22%">Step</th>
+            <th style="width:22%">Shape</th>
+            <th style="width:30%">Scales with</th>
+            <th style="width:26%">Right lever</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Embed chunks</td>
+            <td>Prefill only, huge batch</td>
+            <td>Total tokens in the corpus</td>
+            <td>Batch size, device, model size</td>
+          </tr>
+          <tr>
+            <td>Embed query</td>
+            <td>Prefill only, batch of 1</td>
+            <td>Nothing — it's ~20 tokens</td>
+            <td>Keep the model resident. Nothing else.</td>
+          </tr>
+          <tr>
+            <td>Search + rank</td>
+            <td>Not inference</td>
+            <td>Corpus size, and weakly</td>
+            <td>Index choice — but only past ~100k vectors</td>
+          </tr>
+          <tr>
+            <td>Generate</td>
+            <td>Big prefill → short decode</td>
+            <td>Chunks retrieved &times; chunk size</td>
+            <td>Prefix caching, fewer/smaller chunks</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p style="margin-top:26px;"><strong>RAG inverts the usual workload.</strong> Ordinary chat is a short prompt and a long answer — decode-dominated. RAG is a long prompt and a short answer — prefill-dominated. Retrieving 5 chunks of 400 tokens means every question carries ~2,000 tokens of context to produce maybe 300 tokens of output. So a RAG service stresses the half of the engine that a chatbot barely touches, and the levers that help are different ones.</p>
+
+    <h3 style="margin-top:34px;">The cache boundary — the most expensive detail in RAG</h3>
+    <p>Prefix caching works by hashing everything up to a breakpoint. That single mechanic decides your entire cost structure, and it is easy to get exactly backwards.</p>
+
+    <figure class="fig-scroll">
+      <svg viewBox="0 0 1020 400" role="img" aria-label="Two prompt layouts compared: placing retrieved chunks before the cache breakpoint gives a zero percent hit rate, while placing the stable system prompt before the breakpoint and the volatile chunks after it caches the stable prefix on every query.">
+        <!-- WRONG -->
+        <text x="30" y="30" font-family="Bricolage Grotesque, sans-serif" font-size="15" font-weight="700" fill="#8E2437">Chunks first — cache never hits</text>
+
+        <rect x="30" y="52" width="410" height="58" fill="#8E2437" opacity="0.13"/>
+        <rect x="30" y="52" width="410" height="58" fill="none" stroke="#8E2437" stroke-width="1.6"/>
+        <text x="48" y="76" font-family="Bricolage Grotesque, sans-serif" font-size="13" font-weight="700" fill="#8E2437">Retrieved chunks</text>
+        <text x="48" y="96" font-family="JetBrains Mono, monospace" font-size="10.5" fill="#8E2437">different on every single query</text>
+
+        <rect x="30" y="114" width="410" height="52" fill="none" stroke="currentColor" stroke-width="1.3" opacity="0.6"/>
+        <text x="48" y="137" font-family="Bricolage Grotesque, sans-serif" font-size="13" font-weight="700" fill="currentColor">System prompt + instructions</text>
+        <text x="48" y="156" font-family="JetBrains Mono, monospace" font-size="10.5" fill="currentColor" opacity="0.6">stable — but stranded behind volatile text</text>
+
+        <line x1="20" y1="178" x2="450" y2="178" stroke="#8E2437" stroke-width="1.6" stroke-dasharray="6 4"/>
+        <text x="450" y="174" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="10.5" fill="#8E2437">▲ cache breakpoint</text>
+
+        <rect x="30" y="190" width="410" height="44" fill="none" stroke="currentColor" stroke-width="1.3" opacity="0.6"/>
+        <text x="48" y="217" font-family="Bricolage Grotesque, sans-serif" font-size="13" font-weight="700" fill="currentColor">Question</text>
+
+        <text x="30" y="272" font-family="JetBrains Mono, monospace" font-size="11.5" fill="currentColor" opacity="0.7">hash covers the chunks → new hash every query</text>
+        <text x="30" y="296" font-family="Bricolage Grotesque, sans-serif" font-size="17" font-weight="700" fill="#8E2437">hit rate: 0%, forever</text>
+        <text x="30" y="322" font-family="JetBrains Mono, monospace" font-size="11" fill="currentColor" opacity="0.62">every token re-prefilled at full price</text>
+
+        <!-- divider -->
+        <line x1="510" y1="20" x2="510" y2="360" stroke="currentColor" stroke-width="1" opacity="0.22"/>
+
+        <!-- RIGHT -->
+        <text x="570" y="30" font-family="Bricolage Grotesque, sans-serif" font-size="15" font-weight="700" fill="#0A6461">Stable prefix first — cache hits every time</text>
+
+        <rect x="570" y="52" width="410" height="58" fill="#0A6461" opacity="0.13"/>
+        <rect x="570" y="52" width="410" height="58" fill="none" stroke="#0A6461" stroke-width="1.6"/>
+        <text x="588" y="76" font-family="Bricolage Grotesque, sans-serif" font-size="13" font-weight="700" fill="#0A6461">System prompt + tools + few-shot</text>
+        <text x="588" y="96" font-family="JetBrains Mono, monospace" font-size="10.5" fill="#0A6461">byte-identical on every query</text>
+
+        <line x1="560" y1="122" x2="990" y2="122" stroke="#0A6461" stroke-width="1.6" stroke-dasharray="6 4"/>
+        <text x="990" y="118" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="10.5" fill="#0A6461">▲ cache breakpoint</text>
+
+        <rect x="570" y="134" width="410" height="56" fill="none" stroke="currentColor" stroke-width="1.3" opacity="0.6"/>
+        <text x="588" y="158" font-family="Bricolage Grotesque, sans-serif" font-size="13" font-weight="700" fill="currentColor">Retrieved chunks</text>
+        <text x="588" y="177" font-family="JetBrains Mono, monospace" font-size="10.5" fill="currentColor" opacity="0.6">volatile — deliberately left uncached</text>
+
+        <rect x="570" y="194" width="410" height="44" fill="none" stroke="currentColor" stroke-width="1.3" opacity="0.6"/>
+        <text x="588" y="221" font-family="Bricolage Grotesque, sans-serif" font-size="13" font-weight="700" fill="currentColor">Question</text>
+
+        <text x="570" y="272" font-family="JetBrains Mono, monospace" font-size="11.5" fill="currentColor" opacity="0.7">hash covers only stable text → same hash every query</text>
+        <text x="570" y="296" font-family="Bricolage Grotesque, sans-serif" font-size="17" font-weight="700" fill="#0A6461">prefix cached at 0.1&times; price</text>
+        <text x="570" y="322" font-family="JetBrains Mono, monospace" font-size="11" fill="currentColor" opacity="0.62">only the chunks and question are prefilled fresh</text>
+      </svg>
+      <figcaption><b>Same content, opposite economics.</b> A cache entry is a hash of everything preceding the breakpoint, so one changing byte anywhere in that span invalidates it. Retrieved chunks change by definition — they must sit <b>after</b> the breakpoint. The same rule kills the seemingly harmless habit of stamping a timestamp or a request id at the top of a system prompt: it converts a permanently cacheable prefix into a permanent cache miss, and the failure is silent — you get correct answers, at ten times the price.</figcaption>
+    </figure>
+
+    <div class="pull">
+      <p>Nothing in RAG fails loudly. A broken cache boundary, a chunk size that splits every table in half, a reranker that never fires — all of them return plausible answers. Only measurement tells you.</p>
+    </div>
+  </section>
+
+  <section>
+    <p class="kicker">The bridge to your machine</p>
+    <h2>Which of these you can actually have</h2>
+    <p class="lede">Map every datacenter technique onto a single M3&nbsp;Pro and a clear picture emerges: you can reproduce almost all of the <em>engineering</em>, and none of the <em>parallelism</em>. That boundary tells you exactly where to stop optimising.</p>
+
+    <div class="tbl-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:24%">Technique</th>
+            <th style="width:31%">What it does at scale</th>
+            <th style="width:24%">On an M3 Pro / 18&nbsp;GB</th>
+            <th style="width:21%">Worth your time?</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Resident model</td>
+            <td>Weights never leave accelerator memory; a cold load is an incident, not a normal path</td>
+            <td>Same idea exactly — <code>OLLAMA_KEEP_ALIVE=-1</code> and a long-lived process</td>
+            <td><span class="yes">▲ biggest single win</span></td>
+          </tr>
+          <tr>
+            <td>Prefix / prompt cache</td>
+            <td>Hash the prompt prefix, reuse stored KV, skip prefill; 10&times; cheaper on the Claude API</td>
+            <td>llama.cpp caches the KV for a stable prefix — put your system prompt first, context after</td>
+            <td><span class="yes">▲ free, do it</span></td>
+          </tr>
+          <tr>
+            <td>Batched embedding</td>
+            <td>Hundreds of chunks per forward pass on a warm GPU fleet</td>
+            <td>Batch 128 on MPS instead of 32 on CPU — the same lever, three orders of magnitude smaller</td>
+            <td><span class="yes">▲ 10–30&times; on ingest</span></td>
+          </tr>
+          <tr>
+            <td>Continuous batching</td>
+            <td>Keeps every slot full; the core unit-economics technique</td>
+            <td>Meaningless at concurrency 1 — you are the only request</td>
+            <td><span class="no">✕ skip entirely</span></td>
+          </tr>
+          <tr>
+            <td>Prefill/decode split</td>
+            <td>Separate hardware pools tuned to opposite bottlenecks</td>
+            <td>One chip, one memory bus. The split has nowhere to go</td>
+            <td><span class="no">✕ not available</span></td>
+          </tr>
+          <tr>
+            <td>Speculative decoding</td>
+            <td>A small draft model proposes tokens, the large one verifies in parallel</td>
+            <td>Genuinely available locally, and the one real lever on decode speed</td>
+            <td><span class="yes">▲ try after baseline</span></td>
+          </tr>
+          <tr>
+            <td>Tensor / pipeline parallel</td>
+            <td>One model sharded across many chips over a fast interconnect</td>
+            <td>Nothing to shard across</td>
+            <td><span class="no">✕ not available</span></td>
+          </tr>
+          <tr>
+            <td>Admission control</td>
+            <td>Sheds and prioritises load so overload degrades gracefully</td>
+            <td>Only matters once something other than you calls the service</td>
+            <td><span class="no">✕ later, if ever</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note">
+      <p><strong>The split worth remembering.</strong> Four of the eight techniques above are unavailable at concurrency 1, and they are precisely the ones that make cloud inference <em>cheap</em> — batching, disaggregation, sharding, admission control all exist to amortise hardware across many simultaneous users. The ones that make it <em>fast</em> — residency, prefix caching, batched embedding, streaming — need no other users at all, and are entirely available to you.</p>
+      <p>So the sensible target for a local stack is not parity. It is: land within roughly 2&times; on perceived latency, accept that per-token cost will be much worse, and be clear-eyed that what you bought is control over where the data sits — not speed and not economy.</p>
+    </div>
+
+    <h3 style="margin-top:36px;">What to take away</h3>
+    <p>Four ideas do most of the explanatory work, and they generalise well beyond RAG:</p>
+    <ol style="max-width:64ch;color:var(--ink-2);padding-left:22px;">
+      <li style="margin-bottom:10px;"><strong>Ask what a step is bound by</strong> — compute, memory bandwidth, or neither — before optimising it. Half of all performance work is spent on steps that were never the constraint.</li>
+      <li style="margin-bottom:10px;"><strong>Cold starts masquerade as slowness.</strong> Loading a model, importing a framework, evicting a cache: these dominate naive systems and disappear entirely under a resident process. Fix residency before you fix algorithms.</li>
+      <li style="margin-bottom:10px;"><strong>Batching is an amortisation trick, and it needs something to amortise over.</strong> With one user it buys nothing on the query path — but on ingest, where you have thousands of chunks, it is the whole game.</li>
+      <li><strong>Perceived latency is a separate metric from throughput</strong>, and the two are often improved by opposite decisions. Decide which one you are optimising before you touch anything.</li>
+    </ol>
+  </section>
+
+  <footer>
+    <h2>Sources</h2>
+    <ol>
+      <li><a href="https://www.anthropic.com/news/anthropic-amazon-compute">Anthropic &amp; Amazon expand collaboration for up to 5 gigawatts of new compute</a> — Anthropic. Trainium2 chip count, gigawatt capacity, international inference expansion.</li>
+      <li><a href="https://platform.claude.com/docs/en/build-with-claude/prompt-caching">Prompt caching</a> — Claude API docs. Cache TTLs, 1.25&times;/2&times; write and 0.1&times; read multipliers, breakpoints, prefix hashing and the 20-block lookback window.</li>
+      <li><a href="https://www.anthropic.com/news/google-broadcom-partnership-compute">Anthropic expands partnership with Google and Broadcom</a> — Anthropic. Multi-cloud TPU capacity.</li>
+      <li><a href="https://handbook.modular.com/inference-optimization/prefill-decode-disaggregation/">Prefill-decode disaggregation</a> — LLM Inference Handbook. Component roles, KV transfer over NIXL/CXL/NVMe-oF, and the 54% throughput / 64% P90 TTFT figures.</li>
+      <li><a href="https://hotinfra.org/2026/papers/hotinfra26-final59.pdf">Reimagining LLM Inference Infrastructure with Memory-Centric KV Cache Servers</a> — HotInfra '26. KV reuse rates of 50–90% (75–95% in multi-agent workloads), decode arithmetic intensity ≈0.5 ops/byte, &gt;70% of decode time memory-stalled.</li>
+      <li><a href="https://www.datacenterfrontier.com/machine-learning/article/55335703/inside-anthropics-multi-cloud-ai-factory-how-aws-trainium-and-google-tpus-shape-its-next-phase">Inside Anthropic's Multi-Cloud AI Factory</a> — Data Center Frontier. Multi-cloud strategy; note that it covers training, and is explicitly silent on inference topology.</li>
+    </ol>
+  </footer>
+
+</div>
+
+</body>
+</html>

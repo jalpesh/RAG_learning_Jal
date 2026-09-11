@@ -1,0 +1,33 @@
+{
+  "_note": "Fixed eval set. Same 25 questions for every config, forever. `expect` is a short ground-truth phrase for eyeballing bench/results output, not auto-graded. Mix of factual, multihop, aggregation, and unanswerable (model must refuse). Corpus: Aadhaar.pdf, Camp_Ethnosphere_Final_Fixed_v2.pdf, Jalpesh_Rajani.pdf, Resume-Jalpesh-Rajani-HCLSoftware.pdf, Udaipur_Jaisalmer_Itinerary_DesertTheme.pdf.",
+  "questions": [
+    {"q": "What is the date of birth listed on the Aadhaar card?", "type": "factual", "expect": "20/05/1984"},
+    {"q": "What city and state is the address on the Aadhaar card in?", "type": "factual", "expect": "Thane, Maharashtra"},
+    {"q": "What is the Camp Ethnosphere participant's name and age?", "type": "factual", "expect": "Hetansh Rajani, age 10"},
+    {"q": "What time does the Bagore Ki Haveli dance show run on Day 1 of the itinerary?", "type": "factual", "expect": "7:00-8:00 PM"},
+    {"q": "What are Jaisalmer Fort's opening hours per the itinerary?", "type": "factual", "expect": "09:00 AM - 05:00 PM"},
+    {"q": "How many years of experience does Jalpesh_Rajani.pdf's profile section claim?", "type": "factual", "expect": "18 years"},
+    {"q": "How many years of experience does the HCL Software resume's summary claim?", "type": "factual", "expect": "19 years"},
+
+    {"q": "What company did Jalpesh work at immediately before joining Tata fintech, and what was his title there?", "type": "multihop", "expect": "CoinDCX, Engineering manager"},
+    {"q": "Per Jalpesh_Rajani.pdf, in what year did he graduate, and how many years of experience does the profile section claim as of the resume's writing?", "type": "multihop", "expect": "2005 graduation; profile claims 18 years experience"},
+    {"q": "Per the itinerary, how far/long is the transfer from the Udaipur/Jaisalmer hotel to the Sam Dunes camp, and what happens there that evening?", "type": "multihop", "expect": "~42 km / 1-1.25 hr transfer, then a sunset jeep safari 4:00-6:00 PM at Sam Sand Dunes"},
+    {"q": "Whose phone number appears on both the Camp Ethnosphere form and the resumes, and what is it?", "type": "multihop", "expect": "Jalpesh Rajani, 9820377527"},
+    {"q": "The Aadhaar card and the Camp Ethnosphere form both list a Thane address - do they name the same housing society?", "type": "multihop", "expect": "Yes, both reference Dahlia Co-op Housing Society (Aadhaar: 'Dahlia Co Op Housing Society'; Camp form: 'dahlia, tropical lagoon')"},
+    {"q": "Do the two resumes agree on the start and end dates of the Reliance Jio role?", "type": "multihop", "expect": "Yes, both list Feb 2015 - Sep/Sept 2018, Sr Manager Android App dev lead"},
+
+    {"q": "List, in chronological order, every company Jalpesh has worked at according to Jalpesh_Rajani.pdf.", "type": "aggregation", "expect": "Western Outdoor Interactive -> Reliance Jio -> Indus OS -> CoinDCX -> Tata fintech"},
+    {"q": "Summarise the 7-day Udaipur-Jaisalmer itinerary in one sentence per day.", "type": "aggregation", "expect": "Day1 arrival+Bagore show; Day2 Udaipur sights (Monsoon Palace, Jagmandir, ropeway, Fateh Sagar); Day3 City Palace+shopping+bus to Jaisalmer; Day4 Jaisalmer Fort/Patwon/Gadisar; Day5 transfer to Sam Dunes camp+safari; Day6 Longewala+Tanot day trip; Day7 Kuldhara/Fossil Park/War Museum+train"},
+    {"q": "Across both resumes combined, what technical skills/tech stacks are listed?", "type": "aggregation", "expect": "Java, SQL, Go, Flutter, Android(Java)/iOS(C#), Node JS, Ruby, Angular JS, Next JS, solution architecture, microservices, design patterns, app security"},
+    {"q": "How many Mumbai pick-up points are offered for the trip, and what are they?", "type": "aggregation", "expect": "9: Dadar Shivaji Park, Chembur Diamond Garden, Goregoan Nesco Park, Borivali National Park, Bandra Kalanagar Signal, Vashi Highway Junction, Thane, Mulund Eastern Express Highway Signal, Kharghar"},
+    {"q": "Summing up the highlights across Jalpesh's CoinDCX role, what were the key achievements?", "type": "aggregation", "expect": "Delivered crypto investment product in 5 months to 13M users; built plug-and-play mobile libraries; 30X scalability improvement; 100% tech funnel efficiency; cut trade failure rate ~4%->0.8%; cut deposit failures to <1%"},
+    {"q": "Combining the Aadhaar card and the Camp Ethnosphere form, what identity and contact details can be gathered about this family (names, DOB, address, phone)?", "type": "aggregation", "expect": "Jalpesh Jitendra Rajani (DOB 20/05/1984) and son Hetansh Rajani, address in Thane/Ghodbunder Road area, phone 9820377527"},
+
+    {"q": "What is Jalpesh's father's name?", "type": "unanswerable", "expect": "not in the context"},
+    {"q": "What is the total budget or per-person cost for the Udaipur-Jaisalmer trip?", "type": "unanswerable", "expect": "not in the context - no pricing given"},
+    {"q": "What blood type is listed on the Aadhaar card?", "type": "unanswerable", "expect": "not in the context - Aadhaar cards do not list blood type"},
+    {"q": "What flight number and airline are used to reach Udaipur?", "type": "unanswerable", "expect": "not in the context - itinerary lists only local transport, no flights"},
+    {"q": "What grades or marks did Hetansh get on his most recent school report card?", "type": "unanswerable", "expect": "not in the context - only school name (GSGS) is given"},
+    {"q": "What was Jalpesh's starting salary at his very first job?", "type": "unanswerable", "expect": "not in the context"}
+  ]
+}

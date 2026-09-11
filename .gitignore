@@ -1,0 +1,14 @@
+.venv/
+.DS_Store
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+__pycache__/
+*.pyc
+.env
+models/
+data/
+corpus/*
+!corpus/.gitkeep
+bench/results/*
+!bench/results/.gitkeep
