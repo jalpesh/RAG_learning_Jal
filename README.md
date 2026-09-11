@@ -123,8 +123,15 @@ llama-server \
 Then start the API in a third terminal:
 
 ```bash
-RAG_API_KEY="replace-with-a-long-random-secret" \
-  uv run uvicorn service.app:app --host 127.0.0.1 --port 8000
+uv run uvicorn service.app:app --host 127.0.0.1 --port 8000
+```
+
+This automatically ingests every supported file currently in `corpus/` during
+startup. After adding, replacing, or removing corpus files while the API is
+already running, re-ingest everything with this one command:
+
+```bash
+curl --fail --request POST http://127.0.0.1:8000/ingest
 ```
 
 Check readiness and query it:
@@ -133,17 +140,17 @@ Check readiness and query it:
 curl --fail http://127.0.0.1:8000/health
 
 curl --fail http://127.0.0.1:8000/query \
-  -H "Authorization: Bearer replace-with-a-long-random-secret" \
   -H "Content-Type: application/json" \
   -d '{"question":"What does the document say?"}'
 
-RAG_API_KEY="replace-with-a-long-random-secret" \
-  uv run python scripts/chat.py
+uv run python scripts/chat.py
 ```
 
-The terminal client reads `RAG_API_KEY` automatically or accepts `--api-key`.
-Prefer the environment variable so the secret is not stored in shell history.
-Never bind an unauthenticated instance to a LAN interface.
+The default local setup is authless and bound to `127.0.0.1`, so it is only
+reachable from the same machine. Authentication is optional: set
+`RAG_API_KEY` on both the API and terminal client if you intentionally expose
+the service beyond localhost. Never bind an unauthenticated instance to a LAN
+interface.
 
 ## 6. Verify the code without model servers
 

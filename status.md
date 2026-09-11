@@ -8,7 +8,8 @@ a default dependency and replacing the deprecated PyMuPDF import.
 
 The README now documents system installation, required Ollama pulls, optional
 Ollama embeddings, llama.cpp GGUF naming, backend startup, benchmark commands,
-API startup, and offline verification.
+authless local API startup, a one-command corpus re-ingest, and offline
+verification. API-key authentication remains an optional deployment control.
 
 Production readiness: lab-grade. The prioritized gap analysis is in
 `docs/03-production-readiness.md`; durable state, security controls, bounded
