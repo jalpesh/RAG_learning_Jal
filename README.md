@@ -13,6 +13,27 @@ Ollama and/or llama.cpp, multi-GB model files, and long-lived local servers.
 The lightweight unit tests can run on macOS or Linux without downloading a
 generation model.
 
+## One-shot setup on a new Mac
+
+After cloning the repository, run:
+
+```bash
+./scripts/bootstrap_new_machine.sh
+```
+
+The script is idempotent. It installs missing Homebrew packages, starts Ollama
+only if needed, pulls missing Ollama models first, synchronizes Python,
+resumes missing official GGUF downloads, starts only absent llama.cpp lanes,
+and starts the API with automatic ingestion. Every phase prints its status.
+If `corpus/` is empty, it stops after preparing the models; copy PDF/DOCX files
+into `corpus/` and run the same command again.
+
+Preview what it would do without installing, downloading, or starting anything:
+
+```bash
+./scripts/bootstrap_new_machine.sh --dry-run
+```
+
 ## 1. Install system prerequisites
 
 ```bash

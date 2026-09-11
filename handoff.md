@@ -3,6 +3,8 @@
 Current state: repository setup and production-readiness audit complete.
 The root README is the canonical installation and model-setup guide.
 Run `./scripts/setup_ollama.sh` on each new machine after starting Ollama.
+For the complete stack, use `./scripts/bootstrap_new_machine.sh`; reruns skip
+healthy services and completed downloads.
 
 Verification commands:
 

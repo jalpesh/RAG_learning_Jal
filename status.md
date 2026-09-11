@@ -15,6 +15,10 @@ Ollama provisioning is deterministic through `scripts/setup_ollama.sh`.
 Preflight now fails when the server or required Qwen3 models are missing, and
 tests protect the per-request `keep_alive=-1s` pinned configuration.
 
+New-machine provisioning is available as one idempotent command through
+`scripts/bootstrap_new_machine.sh`, including resumable GGUF downloads,
+process readiness reporting, and automatic initial/re-ingestion.
+
 Production readiness: lab-grade. The prioritized gap analysis is in
 `docs/03-production-readiness.md`; durable state, security controls, bounded
 concurrency, observability, and automated quality gates remain open.
