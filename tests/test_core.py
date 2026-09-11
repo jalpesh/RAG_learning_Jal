@@ -6,6 +6,7 @@ import numpy as np
 
 from rag.cache import SemanticCache
 from rag.confidence import ungrounded_numbers
+from rag.config import GEN_MATRIX, MATRIX
 from rag.retrieve.index import FlatIndex
 
 
@@ -41,6 +42,19 @@ class ConfidenceTests(unittest.TestCase):
         chunks = [{"text": "DOB: 20/05/1984"}]
         answer = "DOB is 20/05/1984 [Aadhaar.pdf p.1]."
         self.assertEqual(ungrounded_numbers(answer, chunks), set())
+
+
+class RuntimeConfigTests(unittest.TestCase):
+    def test_ollama_benchmark_models_are_pinned_per_request(self) -> None:
+        configs = {cfg.name: cfg for cfg in MATRIX + GEN_MATRIX}
+
+        for name in ("mps-pinned", "hybrid-pinned", "ollama-4b"):
+            with self.subTest(config=name):
+                self.assertEqual(configs[name].gen_backend, "ollama")
+                self.assertEqual(configs[name].gen_keep_alive, "-1s")
+
+        self.assertEqual(configs["ollama-4b"].gen_model, "qwen3:4b")
+        self.assertEqual(configs["mps-pinned"].gen_model, "qwen3:8b")
 
 
 if __name__ == "__main__":

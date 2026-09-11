@@ -21,7 +21,6 @@ brew install uv ollama llama.cpp
 cd /Volumes/JalExt/projects/Learning/local-rag-lab
 uv sync --locked
 source .venv/bin/activate
-./scripts/preflight.sh
 ```
 
 `uv sync` installs the default local embedder,
@@ -37,33 +36,38 @@ The Ollama benchmark matrix in `rag/config.py` uses these generation models:
 | `qwen3:4b` | Faster generation benchmark | 4B |
 | `qwen3:8b` | Higher-quality control/deep model | 8B |
 
-Download both and verify them:
+Start Ollama in a dedicated terminal:
 
 ```bash
-ollama pull qwen3:4b
-ollama pull qwen3:8b
-ollama list
+ollama serve
 ```
 
-Start Ollama in a dedicated terminal and keep models resident between calls:
+Then install every required Ollama model with one command from another
+terminal:
 
 ```bash
-OLLAMA_KEEP_ALIVE=-1 ollama serve
+./scripts/setup_ollama.sh
 ```
 
 If the Ollama desktop application is already running, do not start a second
-server. Confirm the existing server is reachable instead:
+server; run the setup script directly. It skips models already present and
+pulls only missing ones.
+
+Verify the complete machine setup:
 
 ```bash
-curl --fail --silent http://127.0.0.1:11434/api/tags >/dev/null \
-  && echo "Ollama is ready"
+./scripts/preflight.sh
 ```
+
+Pinned configurations send `keep_alive="-1s"` in every Ollama API request, so
+they behave the same after cloning to another machine. No
+`OLLAMA_KEEP_ALIVE` shell variable is required.
 
 Optional: the code can use Ollama for embeddings too. The default and measured
 configuration uses Sentence Transformers, so this model is **not required**:
 
 ```bash
-ollama pull nomic-embed-text
+./scripts/setup_ollama.sh --with-embed
 ```
 
 When creating that optional configuration, set both
