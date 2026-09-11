@@ -190,11 +190,9 @@ curl --fail http://127.0.0.1:8000/query \
 uv run python scripts/chat.py
 ```
 
-The default local setup is authless and bound to `127.0.0.1`, so it is only
-reachable from the same machine. Authentication is optional: set
-`RAG_API_KEY` on both the API and terminal client if you intentionally expose
-the service beyond localhost. Never bind an unauthenticated instance to a LAN
-interface.
+The setup is authless and bound to `127.0.0.1`, so no API key or configuration
+key is requested. Keep it bound to localhost; do not expose this development
+service directly to a LAN or the internet.
 
 ## 6. Verify the code without model servers
 
