@@ -446,6 +446,7 @@ dependencies = [
     { name = "rank-bm25" },
     { name = "sentence-transformers" },
     { name = "tiktoken" },
+    { name = "torch" },
     { name = "uvicorn" },
 ]
 
@@ -461,6 +462,7 @@ requires-dist = [
     { name = "rank-bm25", specifier = ">=0.2.2" },
     { name = "sentence-transformers", specifier = ">=3.0" },
     { name = "tiktoken", specifier = ">=0.7" },
+    { name = "torch", specifier = ">=2.4" },
     { name = "uvicorn", specifier = ">=0.30" },
 ]
 
