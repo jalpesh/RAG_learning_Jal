@@ -828,6 +828,67 @@ fires - first version of the test accidentally passed for the wrong
 reason (empty context tripped the numeric check instead), caught by
 checking the returned reason string, not just the boolean.
 
+## Addendum 13 — the draft-conflict question, finally tested: silent majority-vote, both lanes
+
+The open question left since Addendum 10: does a *genuinely conflicting*
+fact across two itinerary drafts (not just a missing document, which
+Addendum 11/12 already covered) reproduce a faithfulness failure? Needed a
+real conflict first - found one by inspection, not assumption: the PDF
+family of drafts (`Clickable`, `Final`, `Optimized`, `v6_Final`,
+`v7_Final`, `DesertTheme*`) states Day 1 as **"Thu, 28 Nov"**; the DOCX
+family (`Complete_Merged`, `Day_1_Polished_Numbered`,
+`Day_1_Final_Clickable_Restaurants`, `Day_1_Final_Search_Links`) states
+the same Day 1 as **"Thu, 28 Dec"**. Same trip, same day label, different
+month - a real, verifiable disagreement between documents, not a
+constructed one.
+
+Confirmed both families retrieve together before testing anything else:
+"What is the exact date of Day 1...?" pulled 4 Dec-family chunks and 1
+Nov-family chunk (`Optimized.pdf`) into the same top-5.
+
+**Result, fast lane**: *"...is Thursday, 28 Dec [Day_1_Polished_Numbered.docx
+p.1]."* Confident, single answer, zero acknowledgment that a directly
+contradicting source was sitting in the same context. `low_confidence:
+false` - neither existing check fired.
+
+**Result, deep lane (forced via `force_lane`, 47s, full reasoning
+budget)**: identical 5 sources, identical answer - *"28 December"* - same
+silent pick, same lack of acknowledgment. More thinking time did not
+surface the conflict. This rules out "the fast model just isn't careful
+enough" as the explanation - it's not a capability gap, it's that nothing
+in the pipeline ever asks the question "do my sources agree with each
+other," at either model size.
+
+**Why neither existing safety net catches this, precisely**:
+- `ungrounded_numbers()` (Addendum 5) checks whether a stated number
+  appears *somewhere* in the retrieved text. "28" appears in both the Nov
+  and Dec chunks, so the check is satisfied - it was never designed to
+  notice that "28" is attached to two different, contradictory month
+  labels across sources.
+- `missing_named_sources()` (Addendum 12) checks whether every document
+  the *question* explicitly names was actually retrieved. This question
+  never names a specific draft, so there's nothing to cross-check against
+  - the check has no opinion about documents disagreeing with each other,
+  only about a named document being silently absent.
+
+Both checks are answering "is this claim grounded/complete" - correctly,
+for what they were built to catch (Addendum 5's computed-not-quoted
+numbers, Addendum 11's conflation-across-absent-sources). Neither one
+asks "do the *present*, correctly-retrieved sources contradict each
+other," which is a genuinely different failure mode this question was
+specifically designed to isolate, and did.
+
+**What would actually catch this, unbuilt**: a same-slot contradiction
+check - for chunks retrieved together, extract comparable claims tagged
+with the same apparent referent (a date attached to "Day 1," a name
+attached to "father," a number attached to "years of experience") and
+flag when two retrieved chunks assert different values for the same slot,
+regardless of what the model does with them. This is a different
+mechanism from both existing checks - it operates on the *chunks*, before
+generation, not on the *answer*, after. Worth prioritizing over the
+reranker fix still sitting in Open Items below, since this is a confirmed
+gap and the reranker's is a hypothesized one.
+
 ## Open items for next pass
 
 - Re-run the matrix on a corpus large enough (thousands of chunks) that
