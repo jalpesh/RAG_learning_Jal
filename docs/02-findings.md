@@ -889,6 +889,45 @@ generation, not on the *answer*, after. Worth prioritizing over the
 reranker fix still sitting in Open Items below, since this is a confirmed
 gap and the reranker's is a hypothesized one.
 
+## Addendum 14 — the contradiction check: built, verified live, and one thing it doesn't do
+
+Built `conflicting_day_dates()` in `rag/confidence.py` per Addendum 13's
+proposal: a narrow, deliberate first instance (Day-N-to-date claims only,
+not a general claim-extraction engine) of "do retrieved chunks disagree,"
+wired into `is_low_confidence()` as a third signal. Self-check reproduces
+the real Nov/Dec text verbatim plus a negative case (different Day N's
+must never be flagged as conflicting with each other).
+
+**Verified against the live failure, not just the unit test**: re-ran the
+exact question from Addendum 13 against the running service.
+`low_confidence: true`, with the precise reason - *"sources disagree on
+Day 1's date: 28 Dec=Day_1_Polished_Numbered.docx, 28 Nov=Optimized.pdf"* -
+and it auto-escalated. Detection confirmed working end to end.
+
+**Then checked what the escalation actually produces, since Addendum 13
+already showed the deep lane alone doesn't fix this**: the verification
+job's answer was, again, *"Thursday, 28 December"* - no mention of the
+conflict. **Detecting the contradiction and fixing the answer are two
+different problems, and this only solves the first one.** The escalation
+mechanism re-runs the identical question through the deep lane with no
+indication of *why* it's being re-run or *what* disagreement was found -
+the deep model has no more reason to surface the conflict than the fast
+one did, because nothing tells it one exists. The `low_confidence_reason`
+is visible in the API response and to whoever reads it, which has real
+value (an operator or the eval harness can see exactly why this answer is
+suspect) - but the end user talking to the fast lane gets the same
+silently-wrong-shaped answer either way.
+
+**What would close this, unbuilt**: feed the detected conflict into the
+escalation prompt itself - "sources disagree on Day 1's date (28 Nov per
+X, 28 Dec per Y); answer honestly, citing the disagreement" - rather than
+just re-asking the bare question on a bigger model. This is a small,
+specific change (one extra sentence in `build_prompt()` when
+`conflicting_day_dates()` fires) versus the open-ended "how would a model
+ever know to check" problem detection was solving - worth doing before
+extending the contradiction pattern to other fact types, since a detector
+that doesn't inform the fix it triggers is only half the value.
+
 ## Open items for next pass
 
 - Re-run the matrix on a corpus large enough (thousands of chunks) that

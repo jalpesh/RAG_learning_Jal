@@ -65,6 +65,40 @@ def missing_named_sources(question: str, idx, sources_used: list[str]) -> set[st
     return named - retrieved
 
 
+_DAY_DATE = re.compile(
+    r"\bDay\s*(\d+)\b.{0,40}?\b(\d{1,2})\s*(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\b",
+    re.IGNORECASE,
+)
+
+
+def conflicting_day_dates(context_chunks: list[dict]) -> list[tuple[int, dict[str, str]]]:
+    """For chunks retrieved together, do two of them assert a different
+    date for the same "Day N"? Answers a different question than either
+    check above: not "is this claim grounded" but "do the retrieved
+    sources even agree with each other" - the exact gap Addendum 13 found
+    live. Asked "what date is Day 1" against a corpus with two draft
+    itineraries that disagree (one says 28 Nov, another says 28 Dec, both
+    genuinely in the source documents), and both the 4B and the 8B-with-
+    full-reasoning lane picked one silently - neither the numeric-grounding
+    check (Addendum 5) nor the claims-grounding check (Addendum 12) fires,
+    because "28" is grounded in both chunks and the question never names a
+    specific document to check for absence. This is a narrow, deliberately
+    unambitious first instance of a general idea (cross-chunk contradiction
+    detection) - built against the one demonstrated case, not a general
+    claim-extraction engine; extend the pattern when a second, differently-
+    shaped contradiction actually shows up, not before.
+
+    Returns [(day_number, {date_value: source_filename}), ...] for every
+    Day N where retrieved chunks disagree."""
+    claims: dict[int, dict[str, str]] = {}
+    for c in context_chunks:
+        for m in _DAY_DATE.finditer(c["text"]):
+            day_n = int(m.group(1))
+            date_val = f"{m.group(2)} {m.group(3).title()}"
+            claims.setdefault(day_n, {}).setdefault(date_val, c["source"])
+    return [(day_n, vals) for day_n, vals in claims.items() if len(vals) > 1]
+
+
 def is_low_confidence(answer: str, context_chunks: list[dict],
                        question: str | None = None, idx=None,
                        sources_used: list[str] | None = None) -> tuple[bool, str]:
@@ -78,6 +112,11 @@ def is_low_confidence(answer: str, context_chunks: list[dict],
         return True, f"ungrounded numbers: {sorted(ungrounded)}"
     if _HEDGE.search(answer):
         return True, "hedging language"
+    conflicts = conflicting_day_dates(context_chunks)
+    if conflicts:
+        day_n, vals = conflicts[0]
+        detail = ", ".join(f"{date}={src}" for date, src in vals.items())
+        return True, f"sources disagree on Day {day_n}'s date: {detail}"
     if question is not None and idx is not None and sources_used is not None:
         missing = missing_named_sources(question, idx, sources_used)
         if missing:
@@ -149,6 +188,28 @@ def demo() -> None:
     assert flag and "DesertTheme" in reason, \
         f"should have caught DesertTheme never being retrieved despite being named, got: {reason}"
     print(f"confirmed-hallucination case -> escalate=True ({reason})")
+
+    # regression case: the actual confirmed draft-date conflict from
+    # Addendum 13 - real text from the two real files, not paraphrased.
+    conflicting_chunks = [
+        {"source": "Udaipur_Jaisalmer_Itinerary_Optimized.pdf",
+         "text": "Day 1 – Thu, 28 Nov: Arrival & Old City Charm"},
+        {"source": "Udaipur_Jaisalmer_Itinerary_Day_1_Polished_Numbered.docx",
+         "text": "Day 1 – Thu, 28 Dec: Udaipur Arrival + Evening Excursion"},
+    ]
+    confident_pick = "The exact date of Day 1 is Thursday, 28 Dec [source p.1]."
+    flag, reason = is_low_confidence(confident_pick, conflicting_chunks)
+    assert flag and "disagree" in reason, f"should catch the Nov/Dec conflict, got: {reason}"
+    print(f"draft-date-conflict case -> escalate=True ({reason})")
+
+    # and the negative: chunks that use "Day 1"/"Day 2" for genuinely
+    # different days must never be flagged as conflicting with each other.
+    non_conflicting = [
+        {"source": "a.pdf", "text": "Day 1 – Thu, 28 Nov: Arrival"},
+        {"source": "a.pdf", "text": "Day 2 – Fri, 29 Nov: City tour"},
+    ]
+    assert conflicting_day_dates(non_conflicting) == [], "different days must not be flagged as a conflict"
+    print("different Day N's -> no false conflict")
 
     print("\nrag.confidence: all checks passed")
 
