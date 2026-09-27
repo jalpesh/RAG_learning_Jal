@@ -928,6 +928,40 @@ ever know to check" problem detection was solving - worth doing before
 extending the contradiction pattern to other fact types, since a detector
 that doesn't inform the fix it triggers is only half the value.
 
+## Addendum 15 — closing the Addendum 14 gap: tell the model, don't just flag it
+
+Addendum 14 detected the Day-1 date conflict correctly but didn't fix the
+answer - escalation re-asked the same bare question and got the same
+silent pick. Fix: `build_prompt()` (`rag/generate/prompt.py`) now takes an
+optional `conflicts` argument and appends an explicit notice - "your
+sources disagree... do not silently pick one" - naming every conflicting
+value and its source. `Pipeline.query()` computes
+`conflicting_day_dates(hits)` right after retrieval, before the prompt is
+built, so the *first* answer gets the fix, not just a later re-verification.
+
+**Verified live, both lanes, on the exact question that exposed the gap**:
+
+| | Before (Addendum 14) | After |
+|---|---|---|
+| Fast lane | "28 Dec" - silent pick | *"...disputed among the sources. [Day_1_Polished_Numbered.docx] says 28 Dec. However, [Optimized.pdf] states 28 Nov. Thus, the sources disagree."* |
+| Deep lane (escalation) | "28 December" - identical silent pick | *"The sources disagree... .docx files state 28 Dec... Optimized.pdf states 28 Nov... No other documents provide a date for Day 1."* |
+
+Both lanes now name both values and both sources, unprompted beyond the
+injected notice. Still flags `low_confidence: true` and still escalates -
+that's fine, detection and the honesty fix are independent; the escalation
+now just reinforces an already-correct answer instead of quietly
+re-committing the same error on a bigger model.
+
+**Regression set re-run clean** (13/13, no errors, no empty answers) -
+important because this change touches every prompt-build step, not just
+conflicting ones. One question ("what flight number...", unrelated to
+dates) incidentally retrieved conflicting Day-1 chunks and got the notice
+anyway; the model correctly judged the conflict irrelevant to what was
+asked, mentioned it in one clause, and still gave the correct refusal on
+the actual question. Not a false-positive problem worth tightening -
+the model's own relevance judgment absorbed the noise without being
+derailed by it.
+
 ## Open items for next pass
 
 - Re-run the matrix on a corpus large enough (thousands of chunks) that

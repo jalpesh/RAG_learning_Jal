@@ -9,6 +9,7 @@ from rag.ingest.chunk import chunk_pages
 from rag.ingest.embed import Embedder
 from rag.retrieve.index import FlatIndex
 from rag.retrieve.rerank import Reranker
+from rag.confidence import conflicting_day_dates
 from rag.generate import build_prompt, stream_answer
 
 
@@ -107,8 +108,11 @@ class Pipeline:
         hits = [idx.chunks[i] for i in order]
 
         with run.span("prompt_build") as s:
-            messages = build_prompt(question, hits)
+            conflicts = conflicting_day_dates(hits)
+            messages = build_prompt(question, hits, conflicts=conflicts or None)
             s["ctx_tokens"] = sum(h["n_tokens"] for h in hits)
+            if conflicts:
+                s["conflicts_detected"] = len(conflicts)
 
         with run.span("generate", model=cfg.gen_model,
                       keep_alive=cfg.gen_keep_alive) as s:
