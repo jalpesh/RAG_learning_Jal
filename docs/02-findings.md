@@ -1028,8 +1028,81 @@ plural retrieval weakness is unaffected by chunking strategy either way -
 that's a `matched_sources()` matching-rule problem, not a chunk-boundary
 problem, and remains open regardless of which chunker is used.
 
+## Addendum 17 — the "resumes"-plural weakness, actually fixed (content-based category matching)
+
+Closes the retrieval gap named back in the original `matched_sources()`
+work and re-confirmed in Addendum 16: "Do the two resumes agree on the
+start and end dates of the Reliance Jio role?" retrieved neither resume,
+because filename matching structurally *cannot* solve this one -
+`Jalpesh_Rajani.pdf` has no "resume" token anywhere in its name, so no
+amount of plural-handling on filenames could ever recognize both files as
+the same document type. Unfiltered, raw cosine similarity ranked a legal
+filing, a court order, and a BCG report above both actual resumes for
+this generic phrasing.
+
+**Fix**: `rag/retrieve/category.py`, a small content-based classifier,
+not a filename one. On ingest, `classify_sources()` checks each source's
+earliest page against a content signature per category (`resume`: `\d+
+years? of (progressive )?experience`, matched against the real corpus
+and confirmed to hit exactly the two actual resumes, zero false
+positives across all 31 files). At query time, `category_matched_sources()`
+resolves a plain-English category word in the question ("resumes") to
+every source in that category, but only when it resolves to 2+ real
+documents - a single-document hit is already `matched_sources()`'s job,
+this exists specifically for "the resumes"/"the reports" style references
+to a document *type* rather than a specific file.
+
+Wired into `Pipeline.query()` as a fallback, not a replacement: filename
+matching still runs first and still wins when it has an answer; the
+category check only fires when `matched_sources()` comes back empty,
+right before the code would otherwise give up and search unfiltered.
+
+**Verified against the actual failing question, live, not just the unit
+test**: sources are now both resumes (`Jalpesh_Rajani.pdf` p.1-3,
+`Resume-Jalpesh-Rajani-HCLSoftware.pdf` p.1-2), `category_filter_matched`
+logged in the span, and the model answers correctly - "Yes, both resumes
+agree that the Reliance Jio role started in February 2015 and ended in
+September 2018." Full regression set (13/13) re-run against
+`llamacpp-4b-filtered` afterward: no regressions, every other question's
+filter behavior and answer unchanged from before this fix.
+
+**A second, separate bug found while checking the regression set, not
+fixed here**: question 6 in `regression.json` ("Across both resumes
+combined, what technical skills/tech stacks are listed?") *also* names
+the resumes generically, but never reaches the new category fallback at
+all - `matched_sources()` returns a false-positive single match on
+`Bullforce-tech_whitepaper_V1.0.pdf` first, because that filename's one
+distinctive token, `tech`, also appears as a standalone word in the
+question ("tech stacks"). The fallback only runs when `matched_sources()`
+comes back *empty*, so a wrong-but-non-empty match short-circuits it, and
+the answer is wrong (whitepaper content, not either resume). This is a
+pre-existing `matched_sources()` false-positive class - a filename token
+that happens to double as an ordinary English word in the question - and
+is unrelated to today's fix (same behavior existed before and after).
+Left open rather than folded into this change, since the demonstrated,
+scoped bug was the plural-vs-singular one; a generic "avoid common-word
+filename tokens" rule is a bigger, separate design change that deserves
+its own pass, not a same-day bolt-on.
+
+**Honest verdict**: the one demonstrated failure is actually fixed and
+confirmed live, not just theorized - both resumes retrieved, correct
+answer, no regressions. The category taxonomy is deliberately narrow
+(one category, one pattern) rather than a speculative general system,
+matching how every other fix in this log has been scoped. The adjacent
+false-positive bug is real and reproducible, but out of scope for this
+pass; noted here so it doesn't get rediscovered as a surprise later.
+
 ## Open items for next pass
 
+- `matched_sources()` has a false-positive class found in Addendum 17: a
+  filename's one distinctive token can also be an ordinary English word
+  that happens to appear in the question (`tech` from `Bullforce-
+  tech_whitepaper_V1.0.pdf` matching "tech stacks"), wrongly narrowing
+  retrieval to the wrong single document and never reaching the
+  category-matching fallback that would otherwise catch it. Needs a
+  design decision (a stoplist of common words? weighting distinctive-
+  but-generic tokens lower than instantly-recognizable ones like proper
+  nouns?), not a same-day patch.
 - Re-run the matrix on a corpus large enough (thousands of chunks) that
   `embed_chunks` is more than 1% of ingest time, so batch/device actually
   get tested.

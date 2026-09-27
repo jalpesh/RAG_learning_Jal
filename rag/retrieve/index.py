@@ -2,6 +2,7 @@ from __future__ import annotations
 import numpy as np
 from rank_bm25 import BM25Okapi
 from rag.retrieve.filter import source_hints, matched_sources, loosely_referenced_sources
+from rag.retrieve.category import classify_sources, category_matched_sources
 
 
 class FlatIndex:
@@ -20,6 +21,7 @@ class FlatIndex:
         self._bm25 = None
         self.sources = sorted({c["source"] for c in chunks})
         self._hints = source_hints(self.sources)
+        self._categories = classify_sources(chunks)
 
     def build_bm25(self) -> None:
         self._bm25 = BM25Okapi([c["text"].lower().split() for c in self.chunks])
@@ -37,6 +39,14 @@ class FlatIndex:
         claims-grounding check, not retrieval filtering). See
         rag.retrieve.filter.loosely_referenced_sources."""
         return loosely_referenced_sources(question, self.sources)
+
+    def category_matched_sources(self, question: str) -> set[str]:
+        """Every source matching a document *category* the question names
+        by plain-English word ("the resumes"), resolved from content, not
+        filenames - see rag.retrieve.category. Fixes the specific case
+        filename matching structurally cannot: two documents of the same
+        real-world type with no shared distinguishing word in either name."""
+        return category_matched_sources(question, self._categories)
 
     def indices_for(self, sources: set[str]) -> set[int]:
         return {i for i, c in enumerate(self.chunks) if c["source"] in sources}

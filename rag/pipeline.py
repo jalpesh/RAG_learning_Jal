@@ -96,6 +96,15 @@ class Pipeline:
             allowed = None
             if cfg.metadata_filter:
                 matched = idx.matched_sources(question)
+                if not matched:
+                    # Filename matching structurally can't recognize "the
+                    # resumes" when the two resumes share no distinguishing
+                    # filename word - fall back to content-based category
+                    # matching (rag.retrieve.category) before giving up and
+                    # searching everything unfiltered.
+                    matched = idx.category_matched_sources(question)
+                    if matched:
+                        s["category_filter_matched"] = sorted(matched)
                 if matched:
                     allowed = idx.indices_for(matched)
                     s["metadata_filter_matched"] = sorted(matched)
