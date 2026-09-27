@@ -20,6 +20,7 @@ class Config:
     # --- chunking ---
     chunk_tokens: int = 400
     chunk_overlap: int = 80
+    chunk_strategy: str = "sliding"     # "sliding" (blind token window) | "structured" (pack whole paragraphs/sections/tables, split only an oversized one)
 
     # --- retrieval ---
     top_k: int = 5
@@ -77,6 +78,10 @@ GEN_MATRIX = [
     Config(name="llamacpp-4b-filtered", embed_device="mps", embed_batch=128,
            gen_backend="llamacpp", gen_model="qwen3-4b",
            llama_host="http://127.0.0.1:8082", metadata_filter=True),
+    Config(name="llamacpp-4b-structured", embed_device="mps", embed_batch=128,
+           gen_backend="llamacpp", gen_model="qwen3-4b",
+           llama_host="http://127.0.0.1:8082", metadata_filter=True,
+           chunk_strategy="structured"),
     Config(name="llamacpp-4b-reranked", embed_device="mps", embed_batch=128,
            gen_backend="llamacpp", gen_model="qwen3-4b",
            llama_host="http://127.0.0.1:8082", reranker=True),

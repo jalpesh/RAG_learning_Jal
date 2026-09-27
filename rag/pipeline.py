@@ -6,6 +6,7 @@ from harness.spans import Run
 from rag.config import Config
 from rag.ingest.parse import parse_dir
 from rag.ingest.chunk import chunk_pages
+from rag.ingest.structured import parse_structured_dir, chunk_structured
 from rag.ingest.embed import Embedder
 from rag.retrieve.index import FlatIndex
 from rag.retrieve.rerank import Reranker
@@ -41,13 +42,22 @@ class Pipeline:
                           device=cfg.reranker_device):
                 self.reranker.load()
 
-        with run.span("parse") as s:
-            pages = parse_dir(corpus)
-            s["n_pages"] = len(pages)
-            s["n_suspect_scanned"] = sum(p["suspect_scanned"] for p in pages)
+        structured = cfg.chunk_strategy == "structured"
+        with run.span("parse", strategy=cfg.chunk_strategy) as s:
+            if structured:
+                units = parse_structured_dir(corpus)
+                s["n_units"] = len(units)
+            else:
+                pages = parse_dir(corpus)
+                s["n_pages"] = len(pages)
+                s["n_suspect_scanned"] = sum(p["suspect_scanned"] for p in pages)
 
-        with run.span("chunk", size=cfg.chunk_tokens, overlap=cfg.chunk_overlap) as s:
-            chunks = chunk_pages(pages, cfg.chunk_tokens, cfg.chunk_overlap)
+        with run.span("chunk", size=cfg.chunk_tokens, overlap=cfg.chunk_overlap,
+                      strategy=cfg.chunk_strategy) as s:
+            if structured:
+                chunks = chunk_structured(units, cfg.chunk_tokens, cfg.chunk_overlap)
+            else:
+                chunks = chunk_pages(pages, cfg.chunk_tokens, cfg.chunk_overlap)
             s["n_chunks"] = len(chunks)
 
         with run.span("dedup") as s:

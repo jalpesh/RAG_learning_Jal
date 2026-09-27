@@ -962,6 +962,72 @@ the actual question. Not a false-positive problem worth tightening -
 the model's own relevance judgment absorbed the noise without being
 derailed by it.
 
+## Addendum 16 — structure-aware chunking: built, tested, real bug caught, no clear win
+
+Built `rag/ingest/structured.py` as an opt-in alternative
+(`Config.chunk_strategy = "structured"`, default stays `"sliding"` -
+prototype before adopting, per the chunk-size discussion this addendum
+answers): PDF paragraphs via pymupdf's own `get_text("blocks")` layout
+analysis instead of blind token-count slicing; DOCX sections via python-
+docx's actual `Heading 1/2/3` style metadata (thrown away entirely by the
+existing flat-text `parse_docx`); tables kept as one unit each, never
+sliced mid-row. Units are greedily packed up to the token budget; only a
+single oversized unit falls back to the ordinary sliding window.
+
+**A real bug caught by testing against the actual Bullforce whitepaper,
+not the unit tests**: the first version let packed units span a page
+boundary under one page-number tag - a chunk citing `page: 1` while half
+its content was actually page 2's table of contents. Wrong page numbers
+undermine the one thing this project's citations exist for (verifiability).
+Fixed by flushing the pack buffer on any page change, confirmed against
+the real document (chunk count 18->9, each chunk now provably single-
+page), and added as a regression test with the exact scenario.
+
+**Also caught defensively**: `python-docx` returns `paragraph.style` as
+`None` for some paragraphs in the real corpus (`Legal_Risk_Analysis_
+Shop9A3_Rajani.docx`) - crashed a naive `.style.name` check immediately;
+handled before it reached the actual parser.
+
+**Regression set re-run, full honest comparison against sliding-window,
+not just a pass/fail**: 13/13 clean on both, one measurable efficiency win,
+and two questions worth reporting precisely rather than rounding to "it's
+better":
+
+- **Efficiency, real**: 82,318 embedded tokens vs sliding-window's 93,913
+  (~12% fewer) - packing whole units produces zero redundant overlap,
+  where the sliding window's 20% overlap duplicates content near every
+  boundary. Fewer tokens to embed, same corpus.
+- **11 of 13 questions**: same substance, wording variance only - the
+  normal run-to-run variance already documented in Addendum 2.
+- **One question improved, but not for the reason chunking strategy
+  should get credit for**: "do the two resumes agree on Reliance Jio
+  dates" - sliding-window retrieved *zero* resume chunks (same known
+  "resumes"-plural-doesn't-match-"resume"-singular retrieval-ranking
+  weakness documented back when `matched_sources()` was first built - two
+  unrelated documents, a legal filing and a court order, score higher by
+  raw cosine similarity than the actual resumes for this generic
+  phrasing, confirmed reproducible right now, not drift). Structured
+  chunking's different unit boundaries happened to let one resume chunk
+  win a top-5 slot this time, and the model answered correctly citing
+  only that one chunk - technically still asserting agreement about a
+  *second* resume it never saw, the same class of issue Addendum 11 named,
+  just landing on the right answer this time. Not a robust fix; a
+  different roll on the same underlying weakness.
+- **One question got worse**: "Mumbai pick-up points" - sliding-window's
+  top-5 happened to include the one correct chunk (`Camp_Ethnosphere...
+  p.1`) alongside noise, giving a correct-but-messy answer; structured's
+  top-5 missed it entirely, giving an honest refusal instead. Arguably the
+  *safer* failure mode (refusing beats a wrong number), but it's a miss
+  against ground truth either way.
+
+**Honest verdict**: not a clear win or loss on this regression set - a
+real, measured efficiency improvement, and confirmation that *which*
+five chunks win a top-5 ranking is sensitive to exactly how content got
+packed, in both directions, on a corpus this size. The known "resumes"-
+plural retrieval weakness is unaffected by chunking strategy either way -
+that's a `matched_sources()` matching-rule problem, not a chunk-boundary
+problem, and remains open regardless of which chunker is used.
+
 ## Open items for next pass
 
 - Re-run the matrix on a corpus large enough (thousands of chunks) that
