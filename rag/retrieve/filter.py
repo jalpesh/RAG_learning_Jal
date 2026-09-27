@@ -4,7 +4,19 @@ from pathlib import Path
 
 # Filename-versioning noise, not real content words - would give false
 # "distinctive" signal on words too generic to mean anything.
-_STOPWORDS = {"final", "fixed", "copy", "new", "old", "draft"}
+#
+# "tech" added after Addendum 17: it's the one single-owner token on
+# Bullforce-tech_whitepaper_V1.0.pdf, but it's also an ordinary English
+# word that shows up in unrelated questions ("tech stacks"), so being
+# single-owner in this corpus doesn't make it a real identifier. A
+# blanket "reject any dictionary word" rule was tried and rejected - it
+# also strips "resume" as a hint, which silently breaks the already-
+# working HCL-resume question (matched only via "resume"; "hclsoftware"
+# never appears in the query text as one word). Hand-picking words as
+# they're demonstrated to misfire, same as this list already did for
+# filename-versioning noise, is the narrower fix - extend only when a
+# next real case shows up, not preemptively.
+_STOPWORDS = {"final", "fixed", "copy", "new", "old", "draft", "tech"}
 
 
 def _tokenize(filename: str) -> set[str]:

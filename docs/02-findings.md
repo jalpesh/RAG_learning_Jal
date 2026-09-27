@@ -1092,17 +1092,66 @@ matching how every other fix in this log has been scoped. The adjacent
 false-positive bug is real and reproducible, but out of scope for this
 pass; noted here so it doesn't get rediscovered as a surprise later.
 
+## Addendum 18 — the `tech`/whitepaper false positive, fixed the narrow way
+
+The Addendum 17 leftover: "Across both resumes combined, what technical
+skills/tech stacks are listed?" matched `Bullforce-tech_whitepaper_V1.0.pdf`
+via `matched_sources()` before the new category fallback ever got a
+chance to run, because `tech` - that file's one single-owner filename
+token - also occurs as a standalone word in the question.
+
+**Tried and rejected first**: a blanket "reject any token that's a
+common English word" rule, using macOS's own `/usr/share/dict/words`
+(236k words) as a free, dependency-free source of "common" - no new
+package, no design doc, just a native OS word list. Checked against
+every real corpus filename's actual distinctive tokens before writing
+any code, the way every fix in this log gets checked against real data
+first, not just the one file it was meant to fix. Result: it also flags
+`resume`, `chess`, `menu`, `support`, `design`, `legal`, `risk`,
+`search`, `links`, and others as "too common" - and `resume` is the
+*only* reason "How many years of experience does the HCL Software
+resume's summary claim?" (regression question 1) currently matches its
+file at all; `hclsoftware` never appears in the query as one word
+(the query says "HCL Software", two words), so filtering `resume` would
+have silently broken an already-working question to fix a different one.
+Correctly rejected before it ever touched the regression set, not after.
+
+**Fix actually shipped**: added `"tech"` to the existing `_STOPWORDS` set
+in `rag/retrieve/filter.py` - the same hand-picked list already used for
+filename-versioning noise (`final`, `fixed`, `copy`, `new`, `old`,
+`draft`). One word, one line. Confirmed against the real corpus that
+`Bullforce-tech_whitepaper_V1.0.pdf` keeps its other distinctive tokens
+(`bullforce`, `whitepaper`, `v1.0`) and no other file's hints change at
+all.
+
+**Verified live**: full regression set (13/13) re-run - the tech-stacks
+question now correctly fires the Addendum 17 category fallback and
+answers from both resumes' actual skills (Flutter, Go, Node JS, Angular,
+...) instead of whitepaper content; all 12 other questions' filter
+behavior and answers are byte-for-byte unchanged from the Addendum 17
+run.
+
+**Honest verdict**: fixed the demonstrated case, deliberately did not
+generalize it. This is the same shape of trade-off as `_CATEGORY_PATTERNS`
+in Addendum 17 - a hand-picked, narrow rule beats a general one here
+because the general version (any dictionary word) has a real, measured
+cost (breaking the "resume" match) that a one-word stoplist entry
+doesn't. The underlying class of bug - a filename's only distinctive
+token coincidentally being ordinary vocabulary - is still open in
+general; the next occurrence gets the same treatment (add the word,
+re-check the regression set), not a re-litigation of the dictionary
+approach.
+
 ## Open items for next pass
 
-- `matched_sources()` has a false-positive class found in Addendum 17: a
+- ~~`matched_sources()` has a false-positive class found in Addendum 17: a
   filename's one distinctive token can also be an ordinary English word
-  that happens to appear in the question (`tech` from `Bullforce-
-  tech_whitepaper_V1.0.pdf` matching "tech stacks"), wrongly narrowing
-  retrieval to the wrong single document and never reaching the
-  category-matching fallback that would otherwise catch it. Needs a
-  design decision (a stoplist of common words? weighting distinctive-
-  but-generic tokens lower than instantly-recognizable ones like proper
-  nouns?), not a same-day patch.
+  that happens to appear in the question~~ - fixed in Addendum 18 by
+  adding `tech` to `_STOPWORDS`. The *class* of bug (any filename's sole
+  distinctive token turning out to be ordinary vocabulary) is still open
+  in general - a blanket dictionary-word filter was tried and rejected
+  there (breaks the `resume` match) - but the specific demonstrated case
+  is closed. Next occurrence gets the same one-word treatment.
 - Re-run the matrix on a corpus large enough (thousands of chunks) that
   `embed_chunks` is more than 1% of ingest time, so batch/device actually
   get tested.
